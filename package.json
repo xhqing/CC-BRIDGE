@@ -1,7 +1,7 @@
 {
   "name": "claude-proxy",
   "version": "1.0.0",
-  "description": "Claude Code effort-unlock proxy — a local transparent proxy that lets Claude Code use /effort max (and xhigh) with a third-party native-Anthropic-compatible gateway.",
+  "description": "Multi-upstream model proxy for Claude Code — routes to multiple Anthropic/OpenAI-compatible upstreams, translates wire formats, and adapts the request body per model.",
   "private": true,
   "bin": {
     "claude-proxy": "bin/claude-proxy.js"
@@ -23,6 +23,9 @@
     "claude-code",
     "proxy",
     "anthropic",
+    "openai",
+    "model-routing",
+    "gateway",
     "effort"
   ]
 }
