@@ -1,0 +1,28 @@
+{
+  "name": "claude-proxy",
+  "version": "1.0.0",
+  "description": "Claude Code effort-unlock proxy — a local transparent proxy that lets Claude Code use /effort max (and xhigh) with a third-party native-Anthropic-compatible gateway.",
+  "private": true,
+  "bin": {
+    "claude-proxy": "bin/claude-proxy.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    ".env.example",
+    "README.md",
+    "README.zh-CN.md",
+    "VERSION",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=14"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "proxy",
+    "anthropic",
+    "effort"
+  ]
+}
