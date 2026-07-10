@@ -1,6 +1,6 @@
 {
   "name": "claude-proxy",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Multi-upstream model proxy for Claude Code — routes to multiple Anthropic/OpenAI-compatible upstreams, translates wire formats, and adapts the request body per model.",
   "private": true,
   "bin": {

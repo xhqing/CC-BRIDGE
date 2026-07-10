@@ -24,6 +24,7 @@ Usage:
   claude-proxy config show           print config (API_KEY masked)
   claude-proxy config path           print config file path
   claude-proxy config --import <p>   import an existing .env into ~/.claude-proxy/
+  claude-proxy version | -v | --version   print version
   claude-proxy help | -h | --help    this help
 
 Options:
@@ -127,6 +128,14 @@ async function main() {
         break;
       }
       fail(`unknown config action '${action}'. Try: claude-proxy config show | path | --import <path>`);
+      break;
+    }
+
+    case 'version':
+    case '-v':
+    case '--version': {
+      // 版本取自 package.json（npm 安装后一定存在；与 VERSION 文件保持一致）。
+      console.log(`claude-proxy ${require('../package.json').version}`);
       break;
     }
 
