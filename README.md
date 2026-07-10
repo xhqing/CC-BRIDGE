@@ -221,7 +221,8 @@ honored either way.
 | — | strip Anthropic-specific `system` blocks (`x-anthropic-billing-header:`, `You are a Claude agent, built on Anthropic`) | Anthropic-only; meaningless to third-party upstreams |
 | — | tag the last `tools` entry with `cache_control` (Anthropic-format pairs only) | triggers the upstream's context caching |
 
-`PROXY_DUMP=1` writes each rewritten request body to `dumps/` so you can verify
+`PROXY_DUMP=1` writes each rewritten request body to `~/.claude-proxy/dumps/`
+(next to `proxy.log`, never inside the project directory) so you can verify
 the adaptation took effect.
 
 ## Files

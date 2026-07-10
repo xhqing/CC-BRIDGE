@@ -156,7 +156,7 @@ claude-proxy claude -- -p "hello"   # 也接受 "--" 分隔符
 | 剥离 Anthropic 专有 `system` 段（`x-anthropic-billing-header:`、`You are a Claude agent, built on Anthropic`） | Anthropic 专有，对第三方上游无意义 |
 | 给 `tools` 数组尾部打 `cache_control`（仅 Anthropic 格式对） | 触发上游的 context caching |
 
-`PROXY_DUMP=1` 会把每次改写后的请求体写入 `dumps/`，方便验证适配是否生效。
+`PROXY_DUMP=1` 会把每次改写后的请求体写入 `~/.claude-proxy/dumps/`（与 `proxy.log` 同目录，不再写入项目目录），方便验证适配是否生效。
 
 ## 文件
 

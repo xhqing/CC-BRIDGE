@@ -19,6 +19,9 @@ pnpm-debug.log*
 *.pid.lock
 pids/
 
+# Dump output (PROXY_DUMP now writes to ~/.claude-proxy/dumps; ignore any project-local strays)
+dumps/
+
 # OS files
 .DS_Store
 Thumbs.db
