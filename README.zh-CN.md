@@ -1,6 +1,20 @@
+<div align="center">
+  <img src="assets/logo.svg" alt="CC-BRIDGE" width="640">
+</div>
+
 # CC-BRIDGE —— Claude Code 上游桥接框架
 
 > [English](README.md)
+
+<div align="center">
+
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![GitHub stars](https://img.shields.io/github/stars/xhqing/CC-BRIDGE?style=social)
+![GitHub last commit](https://img.shields.io/github/last-commit/xhqing/CC-BRIDGE)
+![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-19C37D)
+![Type: Project](https://img.shields.io/badge/Type-Project-lightgrey)
+
+</div>
 
 一个本地透明桥接框架，让 **Claude Code 访问第三方模型上游**（GLM / Kimi / Qwen ……）。每个上游在独立的 `<name>-bridge/` 目录下有一个 adapter 模块，共享同一套框架（`core/`）。作为白名单伪模型中转的附带效果，CC-BRIDGE 为非官方 provider **解锁 `/effort xhigh`**；同时支持**多 API_KEY 容灾**，并能**强制模型始终以 `max` 思考等级运行**。
 
@@ -212,3 +226,11 @@ cc-bridge glm start                                             # 从源码前�
 3. `git commit -a -m "release vX.Y.Z"` 后 `git tag vX.Y.Z`。
 4. `npm pack` → 把 `cc-bridge-<版本>.tgz` 上传到 GitHub Release。
 5. 在目标机器上从 Release 安装（见[安装](#安装)）。
+
+## 版权与署名
+
+CC-BRIDGE 基于 **MIT 许可证** 开源——见 [LICENSE.md](LICENSE.md)。
+
+版权所有 (c) 2026 **All Contributors**。
+
+**署名方式：** 如果 CC-BRIDGE 对你有帮助，欢迎致谢（非强制）。请在任何副本或衍生项目中保留版权声明与许可证文件，并注明来源：https://github.com/xhqing/CC-BRIDGE。

@@ -12,3 +12,23 @@ CC-BRIDGE 是 Claude Code 上游桥接框架（GLM / Kimi / Qwen …）。通用
 ## 项目规则
 
 - @rules/cc-bridge-install.md  cc-bridge 运行版本必须从 GitHub Release 的 tgz 全局安装，禁止用 `npm link` 把开发目录链接为全局命令。
+
+## commit skill 检测缓存
+
+<!-- commit-skill: readme-standard = ok -->
+- README 中英双语（README.md 英文 + README.zh-CN.md 中文）+ LOGO（assets/logo.svg）+ 徽章 + 版权署名：已就绪（2026-07-24 确认）
+
+<!-- commit-skill: license = ok -->
+- LICENSE.md：已存在，冗余的 LICENSE 已删除（2026-07-24 确认）
+
+<!-- commit-skill: github-about = ok -->
+- GitHub About：已配置（英文 description + topics，2026-07-24）
+
+<!-- commit-skill: attribution-name = ok -->
+- 版权人/署名引用名字：已归一为 All Contributors（2026-07-24 确认）
+
+<!-- commit-skill: readme-link-text = ok -->
+- 英文版 README 跳转中文版链接文字：已统一为「简体中文」（2026-07-24 确认）
+
+<!-- commit-skill: repo-sponsors = ok -->
+- 仓库 Sponsors 按钮：已就绪（xhqing/.github 全局默认 FUNDING.yml，2026-07-24 确认）

@@ -1,0 +1,12 @@
+<svg width="640" height="200" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CC-BRIDGE logo">
+  <defs>
+    <linearGradient id="cc-bridge-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7B68A6"/>
+      <stop offset="100%" stop-color="#B4A5D5"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="200" rx="28" ry="28" fill="url(#cc-bridge-bg)"/>
+  <text x="86" y="128" font-size="88" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🌉</text>
+  <text x="168" y="100" font-size="46" font-weight="700" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif">CC-BRIDGE</text>
+  <text x="170" y="134" font-size="19" fill="#f2ecf9" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif">Project · Claude Code upstream bridge framework</text>
+</svg>
