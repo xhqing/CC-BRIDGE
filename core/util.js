@@ -9,8 +9,8 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Kill anything already bound to `port` (mirrors start.sh's `lsof -ti:PORT | xargs kill`).
-// Returns the pids that were signalled. Silently no-ops when the port is free.
+// Kill anything already bound to `port`. Returns the pids that were signalled.
+// Silently no-ops when the port is free.
 function clearPort(port) {
   let pids = [];
   try {
@@ -20,7 +20,7 @@ function clearPort(port) {
     // lsof exits non-zero when nothing holds the port — that's the common case.
   }
   if (!pids.length) return pids;
-  console.log(`[claude-proxy] killing existing process on :${port} (pid ${pids.join(' ')})`);
+  console.log(`[bridge] killing existing process on :${port} (pid ${pids.join(' ')})`);
   for (const p of pids) {
     try { process.kill(Number(p), 'SIGTERM'); } catch { /* already gone */ }
   }
@@ -29,7 +29,7 @@ function clearPort(port) {
   return pids;
 }
 
-// GET /health on the local proxy. Resolves true on HTTP 200, false otherwise.
+// GET /health on the local bridge. Resolves true on HTTP 200, false otherwise.
 function probeHealth(port) {
   return new Promise((resolve) => {
     let settled = false;
@@ -44,7 +44,7 @@ function probeHealth(port) {
 }
 
 // Poll /health until it answers (max ~10s). If `pid` is given and that pid dies
-// before health comes up, resolve false immediately (proxy crashed on boot).
+// before health comes up, resolve false immediately (bridge crashed on boot).
 async function waitReady(port, pid) {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {

@@ -1,14 +1,17 @@
 {
-  "name": "claude-proxy",
-  "version": "1.1.1",
-  "description": "Multi-upstream model proxy for Claude Code — routes to multiple Anthropic/OpenAI-compatible upstreams, translates wire formats, and adapts the request body per model.",
+  "name": "cc-bridge",
+  "version": "2.0.0",
+  "description": "CC-BRIDGE — Claude Code upstream bridge framework (GLM / Kimi / Qwen …). Routes Claude Code to third-party models via spoofed whitelist IDs, unlocks /effort xhigh, and fails over across multiple API keys. GLM adapter included.",
   "private": true,
   "bin": {
-    "claude-proxy": "bin/claude-proxy.js"
+    "cc-bridge": "bin/cc-bridge.js"
   },
   "files": [
     "bin",
-    "lib",
+    "core",
+    "glm-bridge",
+    "kimi-bridge",
+    "qwen-bridge",
     ".env.example",
     "README.md",
     "README.zh-CN.md",
@@ -19,13 +22,17 @@
     "node": ">=14"
   },
   "keywords": [
-    "claude",
     "claude-code",
+    "cc-bridge",
+    "glm",
+    "glm-5.2",
+    "zai",
+    "kimi",
+    "qwen",
+    "bridge",
     "proxy",
     "anthropic",
-    "openai",
-    "model-routing",
-    "gateway",
-    "effort"
+    "effort",
+    "failover"
   ]
 }
