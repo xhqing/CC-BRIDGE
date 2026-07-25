@@ -1,4 +1,4 @@
-# GLM-BRIDGE — Claude Code ↔ GLM-5.2 (z.ai) 适配器
+# CC-GLM-BRIDGE — Claude Code ↔ GLM-5.2 (z.ai) 适配器
 
 CC-BRIDGE 框架的 GLM 上游适配器，对接 [z.ai](https://z.ai) 的 GLM-5.2（Coding Plan）。这是目前唯一已实现的上游适配器。
 

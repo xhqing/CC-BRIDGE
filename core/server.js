@@ -8,7 +8,7 @@
  * 转发到上游；响应原样回传（注入 modelUsage 让 webview 显示真实窗口）。
  *
  * 上游专属逻辑（GLM 的 thinking 归一化、reasoning_effort、请求体清洗等）由对应
- * adapter 提供（见 glm-bridge/adapter.js），框架层通过 adapter.adaptRequestBody 调用。
+ * adapter 提供（见 cc-glm-bridge/adapter.js），框架层通过 adapter.adaptRequestBody 调用。
  *
  * 多 KEY 容灾：API_KEY 支持逗号分隔多个，某 KEY 返回 401/403（失效/欠费）时熔断
  * 并切换下一个 KEY；瞬态错误先同 KEY 重试、用尽再换 KEY。

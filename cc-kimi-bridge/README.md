@@ -1,4 +1,4 @@
-# KIMI-BRIDGE（预留，待开发）
+# CC-KIMI-BRIDGE（预留，待开发）
 
 CC-BRIDGE 框架的 Kimi（月之暗面）上游适配器。
 
@@ -6,7 +6,7 @@ CC-BRIDGE 框架的 Kimi（月之暗面）上游适配器。
 
 ## 如何实现
 
-1. 在本目录创建 `adapter.js`，实现统一 adapter 接口（参考 [`../glm-bridge/adapter.js`](../glm-bridge/adapter.js) 与 [`../core/adapter.js`](../core/adapter.js) 的接口注释）：
+1. 在本目录创建 `adapter.js`，实现统一 adapter 接口（参考 [`../cc-glm-bridge/adapter.js`](../cc-glm-bridge/adapter.js) 与 [`../core/adapter.js`](../core/adapter.js) 的接口注释）：
    - `name` / `displayName` / `defaultTarget` / `defaultSpoof`
    - `forceMaxEffort`（是否强制最高思考等级）
    - `modelMaxTokens`（Kimi 各模型的 max_tokens 表）

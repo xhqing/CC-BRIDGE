@@ -9,9 +9,9 @@
   "files": [
     "bin",
     "core",
-    "glm-bridge",
-    "kimi-bridge",
-    "qwen-bridge",
+    "cc-glm-bridge",
+    "cc-kimi-bridge",
+    "cc-qwen-bridge",
     ".env.example",
     "README.md",
     "README.zh-CN.md",

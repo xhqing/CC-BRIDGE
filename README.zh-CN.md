@@ -16,7 +16,7 @@
 
 </div>
 
-一个本地透明桥接框架，让 **Claude Code 访问第三方模型上游**（GLM / Kimi / Qwen ……）。每个上游在独立的 `<name>-bridge/` 目录下有一个 adapter 模块，共享同一套框架（`core/`）。作为白名单伪模型中转的附带效果，CC-BRIDGE 为非官方 provider **解锁 `/effort xhigh`**；同时支持**多 API_KEY 容灾**，并能**强制模型始终以 `max` 思考等级运行**。
+一个本地透明桥接框架，让 **Claude Code 访问第三方模型上游**（GLM / Kimi / Qwen ……）。每个上游在独立的 `cc-<name>-bridge/` 目录下有一个 adapter 模块，共享同一套框架（`core/`）。作为白名单伪模型中转的附带效果，CC-BRIDGE 为非官方 provider **解锁 `/effort xhigh`**；同时支持**多 API_KEY 容灾**，并能**强制模型始终以 `max` 思考等级运行**。
 
 > **当前已实现：** `glm`（z.ai GLM-5.2）。`kimi` / `qwen` 为预留占位——见[添加新上游](#添加新上游)。
 
@@ -26,13 +26,13 @@
 
 | 上游 | 状态 | adapter | 目标模型 |
 |------|------|---------|----------|
-| `glm` | ✅ 已实现 | [glm-bridge/](glm-bridge/) | z.ai 上的 GLM-5.2 |
-| `kimi` | 🚧 预留 | [kimi-bridge/](kimi-bridge/) | — |
-| `qwen` | 🚧 预留 | [qwen-bridge/](qwen-bridge/) | — |
+| `glm` | ✅ 已实现 | [cc-glm-bridge/](cc-glm-bridge/) | z.ai 上的 GLM-5.2 |
+| `kimi` | 🚧 预留 | [cc-kimi-bridge/](cc-kimi-bridge/) | — |
+| `qwen` | 🚧 预留 | [cc-qwen-bridge/](cc-qwen-bridge/) | — |
 
 ## 它能做什么
 
-- **框架 + 按上游分 adapter。** 所有与上游无关的通用逻辑（HTTP 服务、多 KEY 容灾、model 改写、modelUsage 注入、daemon）都在 [`core/`](core/)；每个上游的专属逻辑（请求体适配、effort 映射、模型上限表）在各自的 `<name>-bridge/adapter.js`。新增上游只需加一个文件 + 注册表一行。
+- **框架 + 按上游分 adapter。** 所有与上游无关的通用逻辑（HTTP 服务、多 KEY 容灾、model 改写、modelUsage 注入、daemon）都在 [`core/`](core/)；每个上游的专属逻辑（请求体适配、effort 映射、模型上限表）在各自的 `cc-<name>-bridge/adapter.js`。新增上游只需加一个文件 + 注册表一行。
 - **解锁 effort。** 通过白名单伪模型 ID 中转，绕过 Claude Code 客户端的 effort 闸门，让第三方上游也能用 `/effort xhigh`。（见[effort 闸门（xhigh 与 max）](#effort-闸门xhigh-与-max)。）
 - **多 KEY 容灾。** 配置多个 KEY（`API_KEY=k1,k2`）。某 KEY 返回 `401`/`403`（被拒 / 额度用尽）时，桥把它熔断 60 秒并立即切换下一个 KEY；瞬态错误（`429`/`5xx`/网络）先在同 KEY 重试、用尽再换。URL 始终不变，只轮换 KEY。（见[多 KEY 容灾](#多-key-容灾)。）
 - **始终 max 思考（GLM）。** GLM adapter 在每条请求上强制 `reasoning_effort = max`，不受客户端 `/effort` 档位影响。
@@ -164,19 +164,19 @@ cc-bridge claude -- -p "hello"   # 也接受 "--" 分隔符
 
 ## 始终 max 思考（GLM）
 
-GLM adapter 设了 `forceMaxEffort: true`，每条请求都强制 `reasoning_effort = max`、`output_config.effort = max`、`thinking.type = enabled`——三条保险让 GLM-5.2 始终以最高思考等级运行，不受客户端 `/effort` 档位影响。在 [glm-bridge/adapter.js](glm-bridge/adapter.js) 里把 `forceMaxEffort` 设为 `false` 可退回「跟随客户端 effort」的行为。
+GLM adapter 设了 `forceMaxEffort: true`，每条请求都强制 `reasoning_effort = max`、`output_config.effort = max`、`thinking.type = enabled`——三条保险让 GLM-5.2 始终以最高思考等级运行，不受客户端 `/effort` 档位影响。在 [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) 里把 `forceMaxEffort` 设为 `false` 可退回「跟随客户端 effort」的行为。
 
 ## 添加新上游
 
 CC-BRIDGE 就是为扩展而设计的。新增一个上游（如 `kimi`）：
 
-1. **创建 adapter** `kimi-bridge/adapter.js`，实现 adapter 接口（见 [glm-bridge/adapter.js](glm-bridge/adapter.js) 和 [core/adapter.js](core/adapter.js) 的注释）：
+1. **创建 adapter** `cc-kimi-bridge/adapter.js`，实现 adapter 接口（见 [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) 和 [core/adapter.js](core/adapter.js) 的注释）：
    - `name`、`displayName`、`defaultTarget`、`defaultSpoof`
    - `forceMaxEffort`（是否强制最高思考等级）
    - `modelMaxTokens`（`{ 模型ID: 最大输出token }`）
    - `adaptRequestBody(obj, ctx)`——为该上游适配 Anthropic 请求体；`ctx = { target }`
 2. **注册** 在 [core/adapter.js](core/adapter.js) 里把 `kimi` 的 `implemented` 改为 `true`。
-3. **文档** 写 `kimi-bridge/README.md`，按需补配置模板。
+3. **文档** 写 `cc-kimi-bridge/README.md`，按需补配置模板。
 
 完成——框架、CLI、多 KEY 容灾、daemon 全部无需改动即可工作。用户随后用 `cc-bridge kimi start`、编辑 `~/.cc-bridge/kimi.env` 等。
 
@@ -191,8 +191,8 @@ CC-BRIDGE 就是为扩展而设计的。新增一个上游（如 `kimi`）：
 | `core/daemon.js`          | 后台进程管理（按上游的 pid + 日志）                |
 | `core/claude.js`          | 启动桥接 + 通过它启动 `claude`                    |
 | `core/util.js`            | 端口清理 / health 探测 / 就绪等待                 |
-| `glm-bridge/adapter.js`   | GLM（z.ai GLM-5.2）adapter——请求体适配、强制 max、模型上限表 |
-| `kimi-bridge/`、`qwen-bridge/` | 预留占位（adapter + README）                |
+| `cc-glm-bridge/adapter.js`   | GLM（z.ai GLM-5.2）adapter——请求体适配、强制 max、模型上限表 |
+| `cc-kimi-bridge/`、`cc-qwen-bridge/` | 预留占位（adapter + README）                |
 | `.env.example`            | GLM 配置模板（随包发布）                          |
 | `~/.cc-bridge/<upstream>.env` | 真实配置（你的，gitignored，绝不打包）        |
 
@@ -215,7 +215,7 @@ CC-BRIDGE 就是为扩展而设计的。新增一个上游（如 `kimi`）：
 
 ```bash
 git clone <repo> && cd CC-BRIDGE
-node --check core/*.js bin/cc-bridge.js glm-bridge/adapter.js   # 改完做语法检查
+node --check core/*.js bin/cc-bridge.js cc-glm-bridge/adapter.js   # 改完做语法检查
 cc-bridge glm start                                             # 从源码前台运行
 ```
 

@@ -2,7 +2,7 @@
 
 // GLM (z.ai) 上游适配器 —— Claude Code ↔ GLM-5.2 桥接的上游专属逻辑。
 // 框架层（core/server.js）按统一 adapter 接口调用本文件。新增其它上游（Kimi、Qwen…）
-// 时，在各自的 <name>-bridge/adapter.js 实现同一接口即可，无需改动 core/。
+// 时，在各自的 cc-<name>-bridge/adapter.js 实现同一接口即可，无需改动 core/。
 
 // GLM 系列模型的最大输出 token 上限（来自 z.ai 文档）。用于把 Claude Code 设的
 // max_tokens 钳到目标模型的合法范围，避免过大请求被上游拒绝。

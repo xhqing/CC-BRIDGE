@@ -18,7 +18,7 @@
 
 A local transparent bridge that lets **Claude Code talk to third-party model
 upstreams** (GLM / Kimi / Qwen …) through a single local endpoint. Each upstream
-lives in its own adapter module under a `<name>-bridge/` directory and shares the
+lives in its own adapter module under a `cc-<name>-bridge/` directory and shares the
 same framework (`core/`). As a side effect of routing through a spoofed whitelist
 model, CC-BRIDGE **unlocks `/effort xhigh`** for non-first-party providers; it
 also supports **multiple API keys with automatic failover** and can **force a
@@ -34,16 +34,16 @@ Install it once and start it from **any directory** with a single command:
 
 | upstream | status | adapter | target model |
 |----------|--------|---------|--------------|
-| `glm` | ✅ implemented | [glm-bridge/](glm-bridge/) | GLM-5.2 on z.ai |
-| `kimi` | 🚧 reserved | [kimi-bridge/](kimi-bridge/) | — |
-| `qwen` | 🚧 reserved | [qwen-bridge/](qwen-bridge/) | — |
+| `glm` | ✅ implemented | [cc-glm-bridge/](cc-glm-bridge/) | GLM-5.2 on z.ai |
+| `kimi` | 🚧 reserved | [cc-kimi-bridge/](cc-kimi-bridge/) | — |
+| `qwen` | 🚧 reserved | [cc-qwen-bridge/](cc-qwen-bridge/) | — |
 
 ## What it does
 
 - **Framework + per-upstream adapters.** All upstream-agnostic logic (HTTP
   server, multi-key failover, model rewriting, modelUsage injection, daemon) lives
   in [`core/`](core/). Each upstream's quirks (body adaptation, effort mapping,
-  model caps) live in its `<name>-bridge/adapter.js`. Adding an upstream touches
+  model caps) live in its `cc-<name>-bridge/adapter.js`. Adding an upstream touches
   only one new file + one registry line.
 - **Effort unlock.** Routing via a spoofed whitelist model ID bypasses Claude
   Code's client-side effort gate, so `/effort xhigh` works with third-party
@@ -223,15 +223,15 @@ The GLM adapter sets `forceMaxEffort: true`, so on every request it forces
 `reasoning_effort = max`, `output_config.effort = max`, and
 `thinking.type = enabled` — three guarantees that GLM-5.2 runs at maximum
 thinking regardless of the client's `/effort` tier. Set `forceMaxEffort: false`
-in [glm-bridge/adapter.js](glm-bridge/adapter.js) to fall back to
+in [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) to fall back to
 client-following behavior.
 
 ## Adding a new upstream
 
 CC-BRIDGE is built to grow. To add an upstream (e.g. `kimi`):
 
-1. **Create the adapter** at `kimi-bridge/adapter.js`, implementing the adapter
-   interface (see [glm-bridge/adapter.js](glm-bridge/adapter.js) and the comments
+1. **Create the adapter** at `cc-kimi-bridge/adapter.js`, implementing the adapter
+   interface (see [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) and the comments
    in [core/adapter.js](core/adapter.js)):
    - `name`, `displayName`, `defaultTarget`, `defaultSpoof`
    - `forceMaxEffort` (whether to force maximum thinking)
@@ -240,7 +240,7 @@ CC-BRIDGE is built to grow. To add an upstream (e.g. `kimi`):
      upstream; `ctx = { target }`
 2. **Register it** in [core/adapter.js](core/adapter.js): set `implemented: true`
    for `kimi`.
-3. **Document it** in `kimi-bridge/README.md` and add a config template if needed.
+3. **Document it** in `cc-kimi-bridge/README.md` and add a config template if needed.
 
 That's it — the framework, CLI, multi-key failover, and daemon all work
 unchanged. Users then run `cc-bridge kimi start`, edit `~/.cc-bridge/kimi.env`,
@@ -257,8 +257,8 @@ etc.
 | `core/daemon.js`         | background process management (per-upstream pid + log) |
 | `core/claude.js`         | start bridge + launch `claude` through it          |
 | `core/util.js`           | port cleanup / health probe / readiness wait       |
-| `glm-bridge/adapter.js`  | GLM (z.ai GLM-5.2) adapter — body adaptation, force-max, model caps |
-| `kimi-bridge/`, `qwen-bridge/` | reserved placeholders (adapter + README)    |
+| `cc-glm-bridge/adapter.js`  | GLM (z.ai GLM-5.2) adapter — body adaptation, force-max, model caps |
+| `cc-kimi-bridge/`, `cc-qwen-bridge/` | reserved placeholders (adapter + README)    |
 | `.env.example`           | GLM config template (bundled with the package)     |
 | `~/.cc-bridge/<upstream>.env` | real config (yours, gitignored, never packaged) |
 
@@ -293,7 +293,7 @@ bump version → publish → install.
 
 ```bash
 git clone <repo> && cd CC-BRIDGE
-node --check core/*.js bin/cc-bridge.js glm-bridge/adapter.js   # syntax check after edits
+node --check core/*.js bin/cc-bridge.js cc-glm-bridge/adapter.js   # syntax check after edits
 cc-bridge glm start                                             # run from source (foreground)
 ```
 
