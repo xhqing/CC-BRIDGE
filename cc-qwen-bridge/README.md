@@ -12,6 +12,6 @@ CC-BRIDGE 框架的 Qwen（通义千问 / 阿里云百炼）上游适配器。
    - `modelMaxTokens`（Qwen 各模型的 max_tokens 表）
    - `adaptRequestBody(obj, ctx)`（把 Anthropic 请求体适配为 Qwen 友好的形式）
 2. 在 [`../core/adapter.js`](../core/adapter.js) 的注册表里把 `qwen` 的 `implemented` 改为 `true`。
-3. 补充 Qwen 的配置字段说明（可参考 [`../.env.example`](../.env.example)）。
+3. 核对配置字段（本目录已有预留模板 [`.env.example`](.env.example)，按实际可用模型 / 窗口填入）。
 
 实现后即可用 `cc-bridge qwen start` / `cc-bridge qwen daemon` / `cc-bridge qwen config` 等命令，配置文件为 `~/.cc-bridge/qwen.env`。

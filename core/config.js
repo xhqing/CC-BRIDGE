@@ -9,14 +9,22 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+const { REGISTRY } = require('./adapter');
+
 const DIR = path.join(os.homedir(), '.cc-bridge');
-const TEMPLATE = path.resolve(__dirname, '..', '.env.example');
 
 const configDir = () => DIR;
 const configPathFor = (upstream) => path.join(DIR, `${upstream}.env`);
 const pidPathFor = (upstream) => path.join(DIR, `${upstream}.pid`);
 const logPathFor = (upstream) => path.join(DIR, `${upstream}.log`);
-const templatePath = () => TEMPLATE;
+
+// 每上游的配置模板：cc-<name>-bridge/.env.example（随包发布，按上游区分）。上游未
+// 注册时返回 null。`cc-bridge <upstream> config` 首次生成配置时复制的就是它。
+const templatePath = (upstream) => {
+  const entry = REGISTRY[upstream];
+  if (!entry) return null;
+  return path.resolve(__dirname, '..', entry.dir, '.env.example');
+};
 
 function ensureDir() {
   if (!fs.existsSync(DIR)) fs.mkdirSync(DIR, { recursive: true });
@@ -40,6 +48,41 @@ function parseEnv(filePath) {
     if (k) obj[k] = v;
   }
   return obj;
+}
+
+// 解析模型映射为 [{spoof, target}, ...]。支持三种写法（优先级从高到低）：
+//   1) MODEL_MAP="spoofA->targetA,spoofB->targetB"  多对（推荐：单上游内多模型路由，
+//                                                   如 opus 和 haiku 都指向 glm-5.2）
+//   2) SPOOF_MODEL + TARGET_MODEL                    单对（向后兼容旧配置）
+//   3) 两者都没配                                     返回 []（由 server 用 adapter 默认兜底）
+// 第一对约定为「主力对」：claude.js 用它的 spoof 作为启动 claude 时的 ANTHROPIC_MODEL。
+// 格式错误抛 Error（带清晰信息）；loadConfig 会捕获并入 validate 报告，保持不抛契约。
+function parseModelMap(rawMap, rawSpoof, rawTarget) {
+  const pairs = [];
+  const map = (rawMap || '').trim();
+  if (map) {
+    for (const part of map.split(',')) {
+      const seg = part.trim();
+      if (!seg) continue;
+      const arrow = seg.indexOf('->');
+      if (arrow === -1) {
+        throw new Error(`invalid entry "${seg}" — expected "spoof->target"`);
+      }
+      const spoof = seg.slice(0, arrow).trim();
+      const target = seg.slice(arrow + 2).trim();
+      if (!spoof || !target) {
+        throw new Error(`invalid entry "${seg}" — both spoof and target are required around '->'`);
+      }
+      pairs.push({ spoof, target });
+    }
+    if (!pairs.length) throw new Error('MODEL_MAP is set but contains no valid entries');
+    return pairs;
+  }
+  // 单对兼容：SPOOF_MODEL / TARGET_MODEL（缺一边则留空，由 server 用 adapter 默认补齐）。
+  if ((rawSpoof || '').trim() || (rawTarget || '').trim()) {
+    return [{ spoof: (rawSpoof || '').trim(), target: (rawTarget || '').trim() }];
+  }
+  return [];
 }
 
 // Resolve which .env to read: explicit --config > $CC_BRIDGE_CONFIG > per-upstream default.
@@ -67,18 +110,31 @@ function loadConfig(opts = {}) {
   const rawKeys = get('API_KEY', '');
   const KEYS = rawKeys.split(',').map((k) => k.trim()).filter(Boolean);
 
+  // 模型映射（多对 spoof→target）。解析失败不抛——错误存入 modelMapError，由 validate
+  // 报给用户，保持 loadConfig「永不抛错」的契约。
+  let PAIRS = [];
+  let modelMapError = null;
+  try {
+    PAIRS = parseModelMap(get('MODEL_MAP', ''), get('SPOOF_MODEL', ''), get('TARGET_MODEL', ''));
+  } catch (e) {
+    modelMapError = e.message;
+  }
+
   return {
     upstream,
     PORT: parseInt(get('PROXY_PORT', '8787'), 10) || 8787,
     API_BASE: normBase(get('API_BASE', '')),
     KEYS,
     API_KEY: KEYS[0] || '', // 首个 KEY，向后兼容只读单 KEY 的旧代码
-    TARGET_MODEL: get('TARGET_MODEL', ''),   // 空 → 由 adapter 默认值兜底
-    SPOOF_MODEL: get('SPOOF_MODEL', ''),     // 空 → 由 adapter 默认值兜底
+    // 模型映射：[{spoof, target}, ...]。空数组 → server 用 adapter 默认单对兜底。
+    PAIRS,
+    SPOOF_MODEL: PAIRS[0] ? PAIRS[0].spoof : '',   // 主力 spoof（兼容旧字段，= 第一对）
+    TARGET_MODEL: PAIRS[0] ? PAIRS[0].target : '', // 主力 target（同上）
     CONTEXT_WINDOW: parseInt(get('CONTEXT_WINDOW', '0'), 10) || 0,
     MAX_OUTPUT_TOKENS: parseInt(get('MAX_OUTPUT_TOKENS', '0'), 10) || 0,
     VERBOSE: (get('PROXY_LOG', '1') !== '0'),
     DUMP: (get('PROXY_DUMP', '0') === '1'),
+    modelMapError,
     configPath: file,
   };
 }
@@ -87,16 +143,19 @@ function validate(cfg) {
   const missing = [];
   if (!cfg.API_BASE) missing.push('API_BASE');
   if (!cfg.KEYS.length) missing.push('API_KEY');
+  if (cfg.modelMapError) missing.push(`MODEL_MAP (${cfg.modelMapError})`);
   return missing;
 }
 
-// Create ~/.cc-bridge/<upstream>.env from the bundled .env.example if absent.
+// Create ~/.cc-bridge/<upstream>.env from the upstream's bundled .env.example if absent.
+// 模板按上游区分：cc-<name>-bridge/.env.example（找不到则写一行占位注释）。
 function ensureConfig(upstream) {
   ensureDir();
   const CONFIG = configPathFor(upstream);
   if (!fs.existsSync(CONFIG)) {
-    if (fs.existsSync(TEMPLATE)) {
-      fs.copyFileSync(TEMPLATE, CONFIG);
+    const tpl = templatePath(upstream);
+    if (tpl && fs.existsSync(tpl)) {
+      fs.copyFileSync(tpl, CONFIG);
     } else {
       fs.writeFileSync(CONFIG, `# cc-bridge (${upstream}) config — fill in API_BASE / API_KEY\n`);
     }
@@ -133,7 +192,16 @@ function showConfig(upstream) {
   console.log(`PROXY_PORT    : ${cfg.PORT}`);
   console.log(`PROXY_LOG     : ${cfg.VERBOSE ? '1' : '0'}`);
   console.log(`api base      : ${cfg.API_BASE || '(unset)'}`);
-  console.log(`spoof → target: ${cfg.SPOOF_MODEL || '(adapter default)'} → ${cfg.TARGET_MODEL || '(adapter default)'}`);
+  if (cfg.PAIRS.length) {
+    console.log(`model map     : ${cfg.PAIRS.length} pair(s)  (first pair = main model)`);
+    cfg.PAIRS.forEach((p, i) => {
+      const tag = i === 0 ? 'main' : '    ';
+      console.log(`  ${tag} #${i + 1}  ${p.spoof || '(adapter default)'} → ${p.target || '(adapter default)'}`);
+    });
+  } else {
+    console.log(`model map     : (unset — will use adapter default spoof → target)`);
+  }
+  if (cfg.modelMapError) console.log(`MODEL_MAP err : ${cfg.modelMapError}`);
   console.log(`API_KEYs      : ${cfg.KEYS.length}`);
   cfg.KEYS.forEach((k, i) => {
     console.log(`  ${String('#' + (i + 1)).padEnd(8)} ${mask(k)}`);
@@ -142,8 +210,21 @@ function showConfig(upstream) {
   if (cfg.MAX_OUTPUT_TOKENS) console.log(`maxOut        : ${cfg.MAX_OUTPUT_TOKENS.toLocaleString()} tokens`);
 }
 
+// 把 cfg.PAIRS 解析成 server/daemon 直接可用的「路由 + 展示用」对列表：
+// 用户未配（PAIRS 空）→ 用 adapter 默认单对兜底；单边配置 → 另一边用 adapter 默认补齐。
+// 供 server.js（路由）和 daemon.js（banner）共用，避免派生逻辑重复。
+function resolvePairs(cfg, adapter) {
+  const list = (cfg.PAIRS && cfg.PAIRS.length)
+    ? cfg.PAIRS.map((p) => ({ spoof: p.spoof, target: p.target }))
+    : [{ spoof: adapter.defaultSpoof, target: adapter.defaultTarget }];
+  return list.map((p) => ({
+    spoof: p.spoof || adapter.defaultSpoof,
+    target: p.target || adapter.defaultTarget,
+  }));
+}
+
 module.exports = {
   configDir, configPathFor, pidPathFor, logPathFor, templatePath,
-  parseEnv, resolveConfigPath, loadConfig, validate,
+  parseEnv, parseModelMap, resolvePairs, resolveConfigPath, loadConfig, validate,
   ensureConfig, importConfig, editConfig, showConfig, mask, ensureDir,
 };

@@ -5,7 +5,7 @@ CC-BRIDGE 框架的 GLM 上游适配器，对接 [z.ai](https://z.ai) 的 GLM-5.
 ## 它做什么
 
 - 把 Claude Code 发来的 Anthropic `/v1/messages` 请求体适配为 z.ai GLM-5.2 友好的形式（见下表）。
-- 把 `body.model` 从 `SPOOF_MODEL`（如 `claude-opus-4-8`）改写回 `glm-5.2`。
+- 按 `MODEL_MAP` 把 `body.model` 从 spoof（如 `claude-opus-4-8` / `claude-haiku-4-5`）改写回 `glm-5.2`。
 - **强制 GLM-5.2 始终以 `max` 思考等级运行**（`forceMaxEffort: true`）——无论 Claude Code 传来哪个 effort 档位。
 
 ## 请求体适配项
@@ -23,9 +23,9 @@ CC-BRIDGE 框架的 GLM 上游适配器，对接 [z.ai](https://z.ai) 的 GLM-5.
 
 ## 配置
 
-配置文件：`~/.cc-bridge/glm.env`（模板见项目根 [`.env.example`](../.env.example)）。
+配置文件：`~/.cc-bridge/glm.env`（模板见本目录 [`.env.example`](.env.example)）。
 
-主要字段：`API_BASE`（z.ai 接口地址）、`API_KEY`（逗号分隔多个 z.ai KEY，支持容灾）、`TARGET_MODEL`（默认 `glm-5.2`）、`SPOOF_MODEL`（默认 `claude-opus-4-8`）、`CONTEXT_WINDOW` / `MAX_OUTPUT_TOKENS`（注入 webview 用量显示）。
+主要字段：`API_BASE`（z.ai 接口地址）、`API_KEY`（逗号分隔多个 z.ai KEY，支持容灾）、`MODEL_MAP`（`spoof->target` 映射对，支持多对，默认 `claude-opus-4-8->glm-5.2`）。
 
 ## adapter 接口
 

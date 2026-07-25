@@ -7,18 +7,17 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn, execFileSync } = require('child_process');
-const { pidPathFor, logPathFor, ensureDir } = require('./config');
+const { pidPathFor, logPathFor, ensureDir, resolvePairs } = require('./config');
 const { waitReady, probeHealth, clearPort, sleep } = require('./util');
 
 const SERVER_JS = path.resolve(__dirname, 'server.js');
 
 function printBanner(cfg, adapter) {
-  const spoof = cfg.SPOOF_MODEL || adapter.defaultSpoof;
-  const target = cfg.TARGET_MODEL || adapter.defaultTarget;
+  const pairs = resolvePairs(cfg, adapter);
   console.log(`[bridge] proxy ready  (port ${cfg.PORT})`);
   console.log(`[bridge] upstream     : ${adapter.displayName}`);
   console.log(`[bridge] api base     : ${cfg.API_BASE}`);
-  console.log(`[bridge] spoof → target : ${spoof} → ${target}`);
+  console.log(`[bridge] spoof → target : ${pairs.map((p) => `${p.spoof} → ${p.target}`).join('   |   ')}`);
   console.log(`[bridge] API keys     : ${cfg.KEYS.length}`);
 }
 

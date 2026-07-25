@@ -131,18 +131,20 @@ cc-bridge glm config --import /path/to/.env   # migrate an existing .env
 # ~/.cc-bridge/glm.env  — GLM (z.ai GLM-5.2)
 API_BASE=https://api.z.ai
 API_KEY=your_zai_key_1,your_zai_key_2   # comma-separated; ≥2 recommended for failover
-TARGET_MODEL=glm-5.2                    # leave empty for adapter default (glm-5.2)
-SPOOF_MODEL=claude-opus-4-8             # leave empty for adapter default
-CONTEXT_WINDOW=1048576                  # injected into the webview's usage display
-MAX_OUTPUT_TOKENS=131072
+# MODEL_MAP: spoof->target pairs (comma-separated). opus is Claude Code's main model,
+# haiku its fast one — both routed to glm-5.2. First pair is the "main" pair (the
+# default model when launching claude). Legacy single-pair SPOOF_MODEL/TARGET_MODEL
+# still work.
+MODEL_MAP=claude-opus-4-8->glm-5.2,claude-haiku-4-5->glm-5.2
 PROXY_PORT=8787
 PROXY_LOG=1                             # 0 to silence per-request logging
 ```
 
-> **Routing:** the incoming `model` must match the configured `SPOOF_MODEL` or
-> `TARGET_MODEL`. A spoof match is rewritten to the real target; a target match is
-> passed through unchanged. Anything else is **rejected with HTTP 400** — never
-> silently rewritten.
+> **Routing:** `MODEL_MAP` maps one or more spoof IDs to real target models
+> (`spoof->target` pairs). An incoming `model` matching a spoof is rewritten to that
+> pair's target; one already equal to a target is passed through unchanged. Anything
+> else is **rejected with HTTP 400** — never silently rewritten. The legacy
+> single-pair `SPOOF_MODEL` / `TARGET_MODEL` keys still work (equivalent to one pair).
 
 ## Usage
 
@@ -259,7 +261,7 @@ etc.
 | `core/util.js`           | port cleanup / health probe / readiness wait       |
 | `cc-glm-bridge/adapter.js`  | GLM (z.ai GLM-5.2) adapter — body adaptation, force-max, model caps |
 | `cc-kimi-bridge/`, `cc-qwen-bridge/` | reserved placeholders (adapter + README)    |
-| `.env.example`           | GLM config template (bundled with the package)     |
+| `cc-<name>-bridge/.env.example` | per-upstream config template (GLM filled; Kimi/Qwen reserved) |
 | `~/.cc-bridge/<upstream>.env` | real config (yours, gitignored, never packaged) |
 
 ## Notes / caveats

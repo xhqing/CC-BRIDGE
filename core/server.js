@@ -4,8 +4,8 @@
  * CC-BRIDGE — Claude Code 上游桥接框架（公共服务器）。
  *
  * 本文件是与上游无关的公共框架：接收 Claude Code 的 /v1/messages 请求，按当前
- * adapter 做请求体适配，把 body.model 从 SPOOF_MODEL 改写为真实 TARGET_MODEL，
- * 转发到上游；响应原样回传（注入 modelUsage 让 webview 显示真实窗口）。
+ * adapter 做请求体适配，按 MODEL_MAP（spoof→target 多对）把 body.model 改写为真实
+ * 模型，转发到上游；响应原样回传（注入 modelUsage 让 webview 显示真实窗口）。
  *
  * 上游专属逻辑（GLM 的 thinking 归一化、reasoning_effort、请求体清洗等）由对应
  * adapter 提供（见 cc-glm-bridge/adapter.js），框架层通过 adapter.adaptRequestBody 调用。
@@ -18,6 +18,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { resolvePairs } = require('./config');
 
 // --- 同 KEY 瞬态重试 --------------------------------------------------------
 // 上游遇瞬态错误（DNS 失败 / 连接挂断 / 429 / 5xx）时，对同一 KEY 重试 N 次、
@@ -59,15 +60,19 @@ function startServer(cfg, adapter) {
     console.error(`[bridge] API_KEY not set for upstream '${adapter.name}' (need at least one key)`); process.exit(1);
   }
 
-  // 单一 pair：单上游 + 单模型。target/spoof 用 adapter 默认值兜底。
-  const pair = {
-    spoof: cfg.SPOOF_MODEL || adapter.defaultSpoof,
-    target: cfg.TARGET_MODEL || adapter.defaultTarget,
+  // 模型映射（多对 spoof→target）：同一上游可把多个 Claude 白名单模型路由到真实模型，
+  // 例如 claude-opus-4-8 和 claude-haiku-4-5 都指向 glm-5.2。用户未配时用 adapter
+  // 默认单对兜底。apiBase / contextWindow / maxOutputTokens 为全局（一个上游共享），
+  // 挂到每一对上方便路由代码直接取用。
+  const pairs = resolvePairs(cfg, adapter).map((p) => ({
+    spoof: p.spoof,
+    target: p.target,
     apiBase: cfg.API_BASE,
     contextWindow: cfg.CONTEXT_WINDOW,
     maxOutputTokens: cfg.MAX_OUTPUT_TOKENS,
-  };
-  const upstream = new URL(pair.apiBase);
+  }));
+  const apiBase = cfg.API_BASE;
+  const upstream = new URL(apiBase);
 
   // 每个 KEY 的熔断到期时间戳（0 = 未熔断）。
   const keyBlockedUntil = new Array(KEYS.length).fill(0);
@@ -77,17 +82,25 @@ function startServer(cfg, adapter) {
 
   // --- modelUsage 注入 ----------------------------------------------------
   // 如果配置了 contextWindow / maxOutputTokens，构建 modelUsage 对象注入 API 响应，
-  // 让 CLI 传递真实的上下文窗口给 webview。同时用 spoof 和 target 两个 key 注入——
-  // CLI 的 currentMainLoopModel 可能取响应里的 model（target 名），也可能取它自己
-  // 记录的请求 model（spoof 名），两个 key 都放确保命中。
+  // 让 CLI 传递真实的上下文窗口给 webview。用所有出现过的 spoof 和 target 名作为 key
+  // 注入同一个 entry——CLI 的 currentMainLoopModel 可能取响应里的 model（target 名），
+  // 也可能取它自己记录的请求 model（spoof 名），多对时取到哪个名都命中。
+  // 注：contextWindow / maxOutputTokens 当前为全局值，所有 target 共享；若将来需要按
+  // target 区分窗口，需把它们下沉到每对。
   function buildModelUsage() {
-    if (!pair.contextWindow && !pair.maxOutputTokens) return null;
+    const cw = cfg.CONTEXT_WINDOW;
+    const mo = cfg.MAX_OUTPUT_TOKENS;
+    if (!cw && !mo) return null;
     const entry = {};
-    if (pair.contextWindow) entry.contextWindow = pair.contextWindow;
-    if (pair.maxOutputTokens) entry.maxOutputTokens = pair.maxOutputTokens;
+    if (cw) entry.contextWindow = cw;
+    if (mo) entry.maxOutputTokens = mo;
     const mu = {};
-    if (pair.target) mu[pair.target] = entry;
-    if (pair.spoof && pair.spoof !== pair.target) mu[pair.spoof] = entry;
+    const names = new Set();
+    for (const p of pairs) {
+      if (p.target) names.add(p.target);
+      if (p.spoof) names.add(p.spoof);
+    }
+    for (const n of names) mu[n] = entry;
     return mu;
   }
 
@@ -109,9 +122,10 @@ function startServer(cfg, adapter) {
         status: 'ok',
         upstream: adapter.name,
         display: adapter.displayName,
-        api_base: pair.apiBase,
-        spoof: pair.spoof,
-        target: pair.target,
+        api_base: apiBase,
+        spoof: pairs[0] ? pairs[0].spoof : null,   // 主力对（兼容旧消费者）
+        target: pairs[0] ? pairs[0].target : null,
+        modelMap: pairs.map((p) => ({ spoof: p.spoof, target: p.target })),
         keys: KEYS.length,
       }));
       return;
@@ -136,31 +150,38 @@ function startServer(cfg, adapter) {
           modelIn = obj.model || null;
           effort = obj.output_config?.effort || obj.effort || null;
           stream = obj.stream === true;
+          // 多对路由：在 pairs 里查 obj.model。命中某对的 spoof → 改写为该对 target；
+          // 命中某对的 target → 原样直传；都不命中 → 400（绝不静默改写到默认对）。
+          // currentTarget 记下本次真实 target，供 adapter 适配与 dump 命名使用。
+          let currentTarget = pairs[0] ? pairs[0].target : null;
           if (obj.model) {
-            if (obj.model === pair.spoof) {
-              // 已知 spoof → 改写为 target。
-              obj.model = pair.target;
+            const spoofHit = pairs.find((p) => p.spoof === obj.model);
+            if (spoofHit) {
+              // 已知 spoof → 改写为该对的 target。
+              obj.model = spoofHit.target;
+              currentTarget = spoofHit.target;
               rewritten = obj.model;
-            } else if (obj.model === pair.target) {
-              // 已是 target → 原样直传。
+            } else if (pairs.some((p) => p.target === obj.model)) {
+              // 已是某对的 target → 原样直传，currentTarget 即它本身。
+              currentTarget = obj.model;
             } else {
-              // 未知 model：不静默改写，直接 400 报错。客户端发的 model 必须显式
-              // 等于配置的 SPOOF_MODEL 或 TARGET_MODEL，否则会在不知情的情况下被
-              // 改写（曾经的隐患行为）。
+              // 未知 model：不静默改写，直接 400 报错。客户端发的 model 必须显式等于
+              // 某个配置对的 spoof 或 target，否则会在不知情的情况下被改写。
+              const legal = [...new Set(pairs.flatMap((p) => [p.spoof, p.target]))].join(', ');
               log(`  rejected unknown model: ${obj.model}`);
               clientRes.writeHead(400, { 'Content-Type': 'application/json' });
               clientRes.end(JSON.stringify({
                 type: 'error',
                 error: {
                   type: 'invalid_request_error',
-                  message: `cc-bridge (${adapter.name}): unknown model "${obj.model}" is neither the configured SPOOF_MODEL (${pair.spoof}) nor TARGET_MODEL (${pair.target}). Edit ~/.cc-bridge/${adapter.name}.env, or switch Claude Code to the configured model.`,
+                  message: `cc-bridge (${adapter.name}): unknown model "${obj.model}". Configured models: ${legal}. Edit ~/.cc-bridge/${adapter.name}.env (MODEL_MAP), or switch Claude Code to a configured model.`,
                 },
               }));
               return;
             }
           }
           // 在 model 改写之后调用 adapter 做上游专属请求体适配。
-          adapter.adaptRequestBody(obj, { target: pair.target });
+          adapter.adaptRequestBody(obj, { target: currentTarget });
           body = Buffer.from(JSON.stringify(obj), 'utf-8');
           // 受 PROXY_DUMP=1 控制：dump 改写后的请求体（用于验证适配是否生效）
           if (process.env.PROXY_DUMP === '1' || cfg.DUMP) {
@@ -170,7 +191,7 @@ function startServer(cfg, adapter) {
               const dumpDir = path.join(path.dirname(cfg.configPath), 'dumps');
               fs.mkdirSync(dumpDir, { recursive: true });
               const ts = new Date().toISOString().replace(/[:.]/g, '-');
-              const safeTarget = (pair.target || 'unknown').replace(/[\/]/g, '-');
+              const safeTarget = (currentTarget || 'unknown').replace(/[\/]/g, '-');
               const dumpFile = path.join(dumpDir, `${ts}-rewritten-${safeTarget}.json`);
               fs.writeFileSync(dumpFile, JSON.stringify(obj, null, 2));
               log(`  dumped rewritten request → ${dumpFile}`);
@@ -433,8 +454,8 @@ function startServer(cfg, adapter) {
   server.listen(PORT, '127.0.0.1', () => {
     console.log(`[bridge] listening on http://127.0.0.1:${PORT}`);
     console.log(`[bridge] upstream     : ${adapter.displayName}`);
-    console.log(`[bridge] api base     : ${pair.apiBase}`);
-    console.log(`[bridge] spoof → target : ${pair.spoof} → ${pair.target}`);
+    console.log(`[bridge] api base     : ${apiBase}`);
+    console.log(`[bridge] spoof → target : ${pairs.map((p) => `${p.spoof} → ${p.target}`).join('   |   ')}`);
     console.log(`[bridge] API keys     : ${KEYS.length}`);
     console.log(`[bridge] force max    : ${adapter.forceMaxEffort ? 'on' : 'off'}`);
     console.log(`[bridge] logging      : ${VERBOSE ? 'on' : 'off'}`);

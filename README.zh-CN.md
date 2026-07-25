@@ -91,15 +91,15 @@ cc-bridge glm config --import /path/to/.env   # 迁移已有 .env
 # ~/.cc-bridge/glm.env  — GLM（z.ai GLM-5.2）
 API_BASE=https://api.z.ai
 API_KEY=your_zai_key_1,your_zai_key_2   # 逗号分隔；推荐 ≥2 个用于容灾
-TARGET_MODEL=glm-5.2                    # 留空则用 adapter 默认值（glm-5.2）
-SPOOF_MODEL=claude-opus-4-8             # 留空则用 adapter 默认值
-CONTEXT_WINDOW=1048576                  # 注入到 webview 的用量显示
-MAX_OUTPUT_TOKENS=131072
+# MODEL_MAP：spoof->target 映射对（逗号分隔）。opus 是 Claude Code 主力模型、haiku 是
+# 轻量模型——两对都指向 glm-5.2。第一对是「主力对」（启动 claude 时的默认模型）。
+# 旧式单对 SPOOF_MODEL / TARGET_MODEL 仍向后兼容。
+MODEL_MAP=claude-opus-4-8->glm-5.2,claude-haiku-4-5->glm-5.2
 PROXY_PORT=8787
 PROXY_LOG=1                             # 0 关闭每请求日志
 ```
 
-> **路由：** 传入的 `model` 必须匹配配置的 `SPOOF_MODEL` 或 `TARGET_MODEL`。匹配 spoof 时改写为真实模型；匹配 target 时原样透传。其余一律**被 HTTP 400 拒绝**，绝不静默改写。
+> **路由：** `MODEL_MAP` 把一个或多个 spoof ID 映射到真实模型（`spoof->target` 对）。传入的 `model` 命中某对 spoof 时改写为该对的 target；已是某对 target 时原样透传。其余一律**被 HTTP 400 拒绝**，绝不静默改写。旧式单对 `SPOOF_MODEL` / `TARGET_MODEL` 仍向后兼容（等价于一对）。
 
 ## 用法
 
@@ -193,7 +193,7 @@ CC-BRIDGE 就是为扩展而设计的。新增一个上游（如 `kimi`）：
 | `core/util.js`            | 端口清理 / health 探测 / 就绪等待                 |
 | `cc-glm-bridge/adapter.js`   | GLM（z.ai GLM-5.2）adapter——请求体适配、强制 max、模型上限表 |
 | `cc-kimi-bridge/`、`cc-qwen-bridge/` | 预留占位（adapter + README）                |
-| `.env.example`            | GLM 配置模板（随包发布）                          |
+| `cc-<name>-bridge/.env.example` | 按上游的配置模板（GLM 已填；Kimi/Qwen 预留）  |
 | `~/.cc-bridge/<upstream>.env` | 真实配置（你的，gitignored，绝不打包）        |
 
 ## 注意 / 限制

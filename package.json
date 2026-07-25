@@ -12,7 +12,6 @@
     "cc-glm-bridge",
     "cc-kimi-bridge",
     "cc-qwen-bridge",
-    ".env.example",
     "README.md",
     "README.zh-CN.md",
     "VERSION",
