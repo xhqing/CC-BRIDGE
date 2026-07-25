@@ -2,6 +2,21 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.1.0] - 2026-07-25
+
+新增「单上游多对模型映射」（MODEL_MAP），替代原单对 SPOOF_MODEL / TARGET_MODEL；配置模板按上游下沉到各 `cc-<name>-bridge/` 子目录。
+
+### Added
+
+- **MODEL_MAP 多对模型映射**：`MODEL_MAP` 支持逗号分隔的多对 `spoof->target`（如 `claude-opus-4-8->glm-5.2,claude-haiku-4-5->glm-5.2`），同一上游可把多个 Claude 白名单模型路由到真实模型——例如 opus 做主力、haiku 做轻量任务，两对都指向 glm-5.2。第一对约定为「主力对」，决定 `cc-bridge <upstream> claude` 启动 claude 时的默认模型。由 `core/config.js` 的 `parseModelMap()` 解析、`resolvePairs()` 派生路由对（供 server 与 daemon 共用）。旧的数字后缀多 pair（v2.0.0 移除的 `API_BASE_2` / `SPOOF_MODEL_2`）以显式、可读的 MODEL_MAP 形式回归。
+
+### Changed
+
+- **请求路由支持多对**：`core/server.js` 在 pairs 里查 `obj.model`——命中某对的 spoof 改写为该对 target、命中某对的 target 原样直传、都不命中返回 400（错误信息列出所有合法模型，绝不静默改写）。`modelUsage` 注入用所有出现过的 spoof / target 名作 key，确保多对时 CLI 取到哪个名都能命中真实上下文窗口。
+- **配置模板按上游下沉**：`.env.example` 从仓库根目录移到各上游子目录 `cc-<name>-bridge/.env.example`；`core/config.js` 的 `templatePath(upstream)` 按 adapter 注册表定位对应模板，`ensureConfig` 首次生成 `~/.cc-bridge/<upstream>.env` 时复制该上游模板（找不到则写占位注释）。
+- **向后兼容**：旧式单对写法 `SPOOF_MODEL` / `TARGET_MODEL` 仍完全兼容（等价于 MODEL_MAP 只写一对），已有配置无需改动。
+- **banner 多对展示**：daemon 与 server 启动 banner 由 `resolvePairs(cfg, adapter)` 统一派生，展示多对 `spoof → target`（`|` 分隔）。
+
 ## [2.0.0] - 2026-07-24
 
 重大重构：项目从「多上游模型代理（claude-proxy）」演化为「Claude Code 上游桥接框架（CC-BRIDGE）」。框架与上游适配器分层：通用逻辑在 `core/`，每个上游一个 `<name>-bridge/adapter.js`，先实现 GLM（z.ai GLM-5.2），预留 Kimi / Qwen。这是破坏性变更（breaking change），版本号升至 2.0.0。
