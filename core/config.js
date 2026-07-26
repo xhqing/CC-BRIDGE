@@ -85,6 +85,28 @@ function parseModelMap(rawMap, rawSpoof, rawTarget) {
   return [];
 }
 
+// 收集所有 API KEY，支持两种写法（可混用、合并去空、不去重）：
+//   1) 编号变量 API_KEY_1 / API_KEY_2 / API_KEY_3 …（推荐）。每个 KEY 独立成行，可单独
+//      写注释标注账号来源（如「# 工作账号」「# 个人账号」），也可单独注释掉整行来临时
+//      禁用某个 KEY——比在一长串逗号串里增删值方便得多。编号按数字大小升序排列（不是
+//      字典序，所以 API_KEY_10 仍排在 API_KEY_2 之后）。
+//   2) 旧式单变量 API_KEY=k1,k2,k3（逗号分隔，向后兼容）。若同时配了编号变量，老式
+//      API_KEY 的值会「追加」在编号变量之后，不会覆盖。
+// process.env 与文件 env 都查（process.env 优先，与 get() 语义一致）。
+function collectKeys(env, get) {
+  const re = /^API_KEY_\d+$/;
+  const names = new Set();
+  for (const k of Object.keys(process.env)) if (re.test(k)) names.add(k);
+  for (const k of Object.keys(env)) if (re.test(k)) names.add(k);
+  const ordered = [...names].sort(
+    (a, b) => parseInt(a.slice('API_KEY_'.length), 10) - parseInt(b.slice('API_KEY_'.length), 10)
+  );
+  const vals = ordered.map((n) => get(n, ''));
+  const legacy = get('API_KEY', '');
+  if (legacy) vals.push(...legacy.split(','));
+  return vals.map((k) => k.trim()).filter(Boolean);
+}
+
 // Resolve which .env to read: explicit --config > $CC_BRIDGE_CONFIG > per-upstream default.
 function resolveConfigPath(upstream, override) {
   if (override) return override;
@@ -104,11 +126,11 @@ function loadConfig(opts = {}) {
     return d;
   };
 
-  // 多 KEY 容灾：API_KEY 逗号分隔配置多个（推荐至少 2 个）。某 KEY 被判失效 / 欠费
-  // （401/403）或同 KEY 瞬态重试用尽时，自动切换到下一个 KEY——URL 不变，只换 KEY。
+  // 多 KEY 容灾：支持编号变量 API_KEY_1 / API_KEY_2 / …（推荐）与旧式 API_KEY=k1,k2
+  // （向后兼容）两种写法，详见 collectKeys。某 KEY 被判失效 / 欠费（401/403）或同 KEY
+  // 瞬态重试用尽时，自动切换到下一个 KEY——URL 不变，只换 KEY。
   const normBase = (v) => (v || '').replace(/\/+$/, '');
-  const rawKeys = get('API_KEY', '');
-  const KEYS = rawKeys.split(',').map((k) => k.trim()).filter(Boolean);
+  const KEYS = collectKeys(env, get);
 
   // 模型映射（多对 spoof→target）。解析失败不抛——错误存入 modelMapError，由 validate
   // 报给用户，保持 loadConfig「永不抛错」的契约。
@@ -142,7 +164,7 @@ function loadConfig(opts = {}) {
 function validate(cfg) {
   const missing = [];
   if (!cfg.API_BASE) missing.push('API_BASE');
-  if (!cfg.KEYS.length) missing.push('API_KEY');
+  if (!cfg.KEYS.length) missing.push('API_KEY_1 (or legacy API_KEY)');
   if (cfg.modelMapError) missing.push(`MODEL_MAP (${cfg.modelMapError})`);
   return missing;
 }

@@ -36,3 +36,6 @@ Thumbs.db
 dist/
 build/
 *.tgz
+
+# Temporary / scratch files (verification scripts, ad-hoc output)
+tmp/

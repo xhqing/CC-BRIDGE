@@ -2,6 +2,21 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Added
+
+- **API_KEY 编号变量写法**：`~/.cc-bridge/<upstream>.env` 里的 API KEY 除原逗号分隔写法（`API_KEY=k1,k2`）外，新增编号变量写法 `API_KEY_1=…` / `API_KEY_2=…` / `API_KEY_3=…`（每个 KEY 独立成行）。这样每个 KEY 可单独写注释标注账号来源，也可整行注释掉临时禁用某个 KEY——比在一长串逗号串里增删某个值方便。两种写法可混用、合并去空（编号变量在前、按数字大小升序排列，旧式 `API_KEY` 的值追加其后）。由 `core/config.js` 新增的 `collectKeys()` 统一收集。
+
+### Changed
+
+- **配置模板与文档同步**：三个 `cc-*-bridge/.env.example` 模板默认改为 `API_KEY_1` / `API_KEY_2` 编号写法（顶部字段说明、配置块、旧式写法兼容提示一并更新）；中英文 README 的「多 KEY 容灾」特性段与章节、配置示例、`ANTHROPIC_API_KEY` 提取脚本（改为 `grep -E '^API_KEY' … | head -1`，兼容编号变量与老式逗号串）一并更新。
+- **validate 缺失提示**：未配任何 KEY 时，缺失项提示由 `API_KEY` 改为 `API_KEY_1 (or legacy API_KEY)`，指明推荐写法。
+
+### 向后兼容
+
+- 旧式 `API_KEY=k1,k2`（逗号分隔）仍完全支持，已有配置无需改动。
+
 ## [2.1.0] - 2026-07-25
 
 新增「单上游多对模型映射」（MODEL_MAP），替代原单对 SPOOF_MODEL / TARGET_MODEL；配置模板按上游下沉到各 `cc-<name>-bridge/` 子目录。

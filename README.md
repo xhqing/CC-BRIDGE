@@ -48,11 +48,14 @@ Install it once and start it from **any directory** with a single command:
 - **Effort unlock.** Routing via a spoofed whitelist model ID bypasses Claude
   Code's client-side effort gate, so `/effort xhigh` works with third-party
   providers. (See [The effort gate](#the-effort-gate-xhigh-vs-max).)
-- **Multi-key failover.** Configure multiple keys (`API_KEY=k1,k2`). When a key
-  returns `401`/`403` (rejected / exhausted), the bridge marks it blocked for 60 s
-  and immediately retries with the next key. Transient errors (`429`/`5xx`/network)
-  are first retried on the same key, then fall over. The URL never changes — only
-  the key rotates. (See [Multi-key failover](#multi-key-failover).)
+- **Multi-key failover.** Configure multiple keys as numbered variables
+  (`API_KEY_1=…`, `API_KEY_2=…`, … — one per line, so each can carry its own
+  comment and be disabled by commenting out the line; legacy comma-separated
+  `API_KEY=k1,k2` still works). When a key returns `401`/`403` (rejected /
+  exhausted), the bridge marks it blocked for 60 s and immediately retries with
+  the next key. Transient errors (`429`/`5xx`/network) are first retried on the
+  same key, then fall over. The URL never changes — only the key rotates. (See
+  [Multi-key failover](#multi-key-failover).)
 - **Always-max thinking (GLM).** The GLM adapter forces `reasoning_effort = max`
   on every request, regardless of the client's `/effort` tier.
 - **Per-upstream isolation.** Each upstream has its own config
@@ -130,7 +133,12 @@ cc-bridge glm config --import /path/to/.env   # migrate an existing .env
 ```ini
 # ~/.cc-bridge/glm.env  — GLM (z.ai GLM-5.2)
 API_BASE=https://api.z.ai
-API_KEY=your_zai_key_1,your_zai_key_2   # comma-separated; ≥2 recommended for failover
+# One key per numbered line — comment each with its account, or comment out a
+# line to disable that key. Legacy comma-separated API_KEY=k1,k2 still works.
+# account A
+API_KEY_1=your_zai_key_1
+# account B
+API_KEY_2=your_zai_key_2
 # MODEL_MAP: spoof->target pairs (comma-separated). opus is Claude Code's main model,
 # haiku its fast one — both routed to glm-5.2. First pair is the "main" pair (the
 # default model when launching claude). Legacy single-pair SPOOF_MODEL/TARGET_MODEL
@@ -180,7 +188,7 @@ won't use it automatically. Pick one:
 - **Manual, with the service running:**
   ```bash
   export ANTHROPIC_BASE_URL=http://127.0.0.1:8787
-  export ANTHROPIC_API_KEY="$(grep ^API_KEY ~/.cc-bridge/glm.env | cut -d= -f2- | cut -d, -f1 | tr -d '\"')"
+  export ANTHROPIC_API_KEY="$(grep -E '^API_KEY' ~/.cc-bridge/glm.env | head -1 | cut -d= -f2- | cut -d, -f1 | tr -d '\"')"
   export ANTHROPIC_MODEL=claude-opus-4-8
   claude
   ```
@@ -200,8 +208,9 @@ above). The bridge logs each request, including the key in use:
 
 ## Multi-key failover
 
-Configure multiple keys as a comma-separated list (`API_KEY=k1,k2,k3`). They
-share one `API_BASE`. The bridge decides when to rotate per request:
+Configure multiple keys as numbered variables (`API_KEY_1=…`, `API_KEY_2=…`,
+`API_KEY_3=…` — one per line; legacy comma-separated `API_KEY=k1,k2,k3` also
+works). They share one `API_BASE`. The bridge decides when to rotate per request:
 
 | upstream signal                          | bridge action                                                   |
 |------------------------------------------|-----------------------------------------------------------------|

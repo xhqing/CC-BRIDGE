@@ -34,7 +34,7 @@
 
 - **框架 + 按上游分 adapter。** 所有与上游无关的通用逻辑（HTTP 服务、多 KEY 容灾、model 改写、modelUsage 注入、daemon）都在 [`core/`](core/)；每个上游的专属逻辑（请求体适配、effort 映射、模型上限表）在各自的 `cc-<name>-bridge/adapter.js`。新增上游只需加一个文件 + 注册表一行。
 - **解锁 effort。** 通过白名单伪模型 ID 中转，绕过 Claude Code 客户端的 effort 闸门，让第三方上游也能用 `/effort xhigh`。（见[effort 闸门（xhigh 与 max）](#effort-闸门xhigh-与-max)。）
-- **多 KEY 容灾。** 配置多个 KEY（`API_KEY=k1,k2`）。某 KEY 返回 `401`/`403`（被拒 / 额度用尽）时，桥把它熔断 60 秒并立即切换下一个 KEY；瞬态错误（`429`/`5xx`/网络）先在同 KEY 重试、用尽再换。URL 始终不变，只轮换 KEY。（见[多 KEY 容灾](#多-key-容灾)。）
+- **多 KEY 容灾。** 把多个 KEY 各自成行配成编号变量（`API_KEY_1=…`、`API_KEY_2=…`…，每行一个，方便单独注释账号来源、或整行注释掉禁用某 KEY；旧式逗号分隔 `API_KEY=k1,k2` 仍兼容）。某 KEY 返回 `401`/`403`（被拒 / 额度用尽）时，桥把它熔断 60 秒并立即切换下一个 KEY；瞬态错误（`429`/`5xx`/网络）先在同 KEY 重试、用尽再换。URL 始终不变，只轮换 KEY。（见[多 KEY 容灾](#多-key-容灾)。）
 - **始终 max 思考（GLM）。** GLM adapter 在每条请求上强制 `reasoning_effort = max`，不受客户端 `/effort` 档位影响。
 - **按上游隔离。** 每个上游有独立配置（`~/.cc-bridge/<upstream>.env`）、pid 文件、日志文件，多个上游可作为 daemon 并存（用不同 `PROXY_PORT`）。
 - **零运行时依赖。** 仅用 Node ≥ 14 内置模块。
@@ -90,7 +90,12 @@ cc-bridge glm config --import /path/to/.env   # 迁移已有 .env
 ```ini
 # ~/.cc-bridge/glm.env  — GLM（z.ai GLM-5.2）
 API_BASE=https://api.z.ai
-API_KEY=your_zai_key_1,your_zai_key_2   # 逗号分隔；推荐 ≥2 个用于容灾
+# 每个 KEY 单独一行——可在上方注释账号来源，整行注释掉即禁用该 KEY。
+# 旧式逗号分隔 API_KEY=k1,k2 仍兼容。
+# 账号 A
+API_KEY_1=your_zai_key_1
+# 账号 B
+API_KEY_2=your_zai_key_2
 # MODEL_MAP：spoof->target 映射对（逗号分隔）。opus 是 Claude Code 主力模型、haiku 是
 # 轻量模型——两对都指向 glm-5.2。第一对是「主力对」（启动 claude 时的默认模型）。
 # 旧式单对 SPOOF_MODEL / TARGET_MODEL 仍向后兼容。
@@ -133,7 +138,7 @@ cc-bridge claude -- -p "hello"   # 也接受 "--" 分隔符
 - **手动（服务已运行时）：**
   ```bash
   export ANTHROPIC_BASE_URL=http://127.0.0.1:8787
-  export ANTHROPIC_API_KEY="$(grep ^API_KEY ~/.cc-bridge/glm.env | cut -d= -f2- | cut -d, -f1 | tr -d '\"')"
+  export ANTHROPIC_API_KEY="$(grep -E '^API_KEY' ~/.cc-bridge/glm.env | head -1 | cut -d= -f2- | cut -d, -f1 | tr -d '\"')"
   export ANTHROPIC_MODEL=claude-opus-4-8
   claude
   ```
@@ -149,7 +154,7 @@ cc-bridge claude -- -p "hello"   # 也接受 "--" 分隔符
 
 ## 多 KEY 容灾
 
-把多个 KEY 用逗号分隔配置（`API_KEY=k1,k2,k3`），共用同一个 `API_BASE`。桥按下列规则决定是否轮换 KEY：
+把多个 KEY 各自成行配成编号变量（`API_KEY_1=…`、`API_KEY_2=…`、`API_KEY_3=…`，每行一个；旧式逗号分隔 `API_KEY=k1,k2,k3` 也兼容），共用同一个 `API_BASE`。桥按下列规则决定是否轮换 KEY：
 
 | 上游信号                                   | 桥接的动作                                                        |
 |--------------------------------------------|-------------------------------------------------------------------|
