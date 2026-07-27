@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.2.0] - 2026-07-27
+
+### Changed
+
+- **`cc-bridge start` 改为后台启动**：`start` 不再以前台阻塞方式运行，改为与 `daemon` 一致的后台 detached 模式（调用 `startDaemon`）。`daemon` 命令保留为 `start` 的别名，两者行为完全一致，已有脚本与文档里的 `cc-bridge daemon` 不受影响。前台直接运行的能力收为内部隐藏命令 `_serve`（调试 / 直接 spawn 兜底用），用户面不再暴露前台启动方式。
+
 ## [2.1.2] - 2026-07-27
 
 ### Fixed

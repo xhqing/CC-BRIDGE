@@ -109,8 +109,8 @@ PROXY_LOG=1                             # 0 关闭每请求日志
 ## 用法
 
 ```bash
-cc-bridge start           # 默认上游（glm），前台（Ctrl-C 停止）
-cc-bridge daemon          # 默认上游，后台（detached）
+cc-bridge start           # 默认上游（glm），后台（detached）
+cc-bridge daemon          # start 的别名（后台）
 cc-bridge claude [args]   # 启动桥接 + 启动指向它的 claude
 cc-bridge stop            # 停止后台服务
 cc-bridge restart         # 重启后台服务（stop + start）
@@ -132,7 +132,7 @@ cc-bridge claude -- -p "hello"   # 也接受 "--" 分隔符
 
 ### 让 claude 持久使用桥接
 
-`cc-bridge`（前台 / daemon）只运行服务——你平常的 `claude` 不会自动用它。任选其一：
+`cc-bridge`（start / daemon）只在后台运行服务——你平常的 `claude` 不会自动用它。任选其一：
 
 - **单次会话：** `cc-bridge claude`（自动处理环境变量 + 清理）。
 - **手动（服务已运行时）：**
@@ -221,7 +221,7 @@ CC-BRIDGE 就是为扩展而设计的。新增一个上游（如 `kimi`）：
 ```bash
 git clone <repo> && cd CC-BRIDGE
 node --check core/*.js bin/cc-bridge.js cc-glm-bridge/adapter.js   # 改完做语法检查
-cc-bridge glm start                                             # 从源码前台运行
+cc-bridge glm start                                             # 从源码后台运行
 ```
 
 ### 发布新版本

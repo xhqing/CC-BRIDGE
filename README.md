@@ -157,8 +157,8 @@ PROXY_LOG=1                             # 0 to silence per-request logging
 ## Usage
 
 ```bash
-cc-bridge start           # default upstream (glm), foreground (Ctrl-C to stop)
-cc-bridge daemon          # default upstream, background (detached)
+cc-bridge start           # default upstream (glm), background (detached)
+cc-bridge daemon          # alias for 'start' (background)
 cc-bridge claude [args]   # start bridge + launch claude pointed at it
 cc-bridge stop            # stop the background service
 cc-bridge restart         # restart the background service (stop + start)
@@ -181,7 +181,7 @@ cc-bridge claude -- -p "hello"   # "--" separator also accepted
 
 ### Making `claude` use the bridge persistently
 
-`cc-bridge` (foreground / daemon) only runs the service — your normal `claude`
+`cc-bridge` (start / daemon) only runs the service in the background — your normal `claude`
 won't use it automatically. Pick one:
 
 - **One session:** `cc-bridge claude` (handles env + cleanup for you).
@@ -305,7 +305,7 @@ bump version → publish → install.
 ```bash
 git clone <repo> && cd CC-BRIDGE
 node --check core/*.js bin/cc-bridge.js cc-glm-bridge/adapter.js   # syntax check after edits
-cc-bridge glm start                                             # run from source (foreground)
+cc-bridge glm start                                             # run from source (background)
 ```
 
 ### Cutting a release

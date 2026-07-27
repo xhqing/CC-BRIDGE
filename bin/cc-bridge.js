@@ -20,8 +20,8 @@ Usage:
   known upstreams: ${listUpstreams().join(', ')}  (only '${DEFAULT_UPSTREAM}' is implemented so far)
 
 Commands:
-  cc-bridge start                 start service in foreground (Ctrl-C to stop)
-  cc-bridge daemon                start in background (detached)
+  cc-bridge start                 start service in background (detached)
+  cc-bridge daemon                alias for 'start' (background)
   cc-bridge claude [args...]      start bridge + launch claude pointed at it
   cc-bridge stop                  stop background service
   cc-bridge restart               restart background service (stop + start)
@@ -100,16 +100,17 @@ async function main() {
 
   switch (cmd) {
     case 'start':
-    case '_serve':                       // internal: foreground server (used by daemon/claude spawn fallback)
+    case 'daemon':                       // 'daemon' is an alias of 'start' (both run in background)
     {
       const { cfg, adapter } = loadOrThrow(upstream, cfgPath);
-      startServer(cfg, adapter);
+      startDaemon(cfg, adapter);
       break;
     }
 
-    case 'daemon': {
+    case '_serve':                       // internal: foreground server (debug / direct spawn)
+    {
       const { cfg, adapter } = loadOrThrow(upstream, cfgPath);
-      startDaemon(cfg, adapter);
+      startServer(cfg, adapter);
       break;
     }
 
