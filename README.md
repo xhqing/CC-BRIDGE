@@ -132,7 +132,7 @@ cc-bridge glm config --import /path/to/.env   # migrate an existing .env
 
 ```ini
 # ~/.cc-bridge/glm.env  — GLM (z.ai GLM-5.2)
-API_BASE=https://api.z.ai
+API_BASE=https://api.z.ai/api/anthropic
 # One key per numbered line — comment each with its account, or comment out a
 # line to disable that key. Legacy comma-separated API_KEY=k1,k2 still works.
 # account A

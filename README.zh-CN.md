@@ -89,7 +89,7 @@ cc-bridge glm config --import /path/to/.env   # 迁移已有 .env
 
 ```ini
 # ~/.cc-bridge/glm.env  — GLM（z.ai GLM-5.2）
-API_BASE=https://api.z.ai
+API_BASE=https://api.z.ai/api/anthropic
 # 每个 KEY 单独一行——可在上方注释账号来源，整行注释掉即禁用该 KEY。
 # 旧式逗号分隔 API_KEY=k1,k2 仍兼容。
 # 账号 A

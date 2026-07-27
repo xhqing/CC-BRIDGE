@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.2.1] - 2026-07-27
+
+### Fixed
+
+- **GLM 配置模板 `API_BASE` 补上 `/api/anthropic` 路径前缀**：`cc-glm-bridge/glm.env.example`、`README.md`、`README.zh-CN.md` 里的 `API_BASE` 默认值由 `https://api.z.ai` 修正为 `https://api.z.ai/api/anthropic`。原值缺路径前缀，桥接把请求转发到 `https://api.z.ai/v1/messages`——z.ai 网关返回 HTML 404 页面，Claude Code 解析不了非 JSON 响应，抛出笼统的「selected model ... may not exist or you may not have access to it」（首次配置即不可用）。补上 `/api/anthropic` 后请求正确落到 z.ai 的 Anthropic 兼容端点 `https://api.z.ai/api/anthropic/v1/messages`。已按旧模板生成配置的用户：把 `~/.cc-bridge/glm.env` 的 `API_BASE` 改为 `https://api.z.ai/api/anthropic` 后 `cc-bridge restart` 即可。
+
 ## [2.2.0] - 2026-07-27
 
 ### Changed
