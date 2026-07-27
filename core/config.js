@@ -18,12 +18,12 @@ const configPathFor = (upstream) => path.join(DIR, `${upstream}.env`);
 const pidPathFor = (upstream) => path.join(DIR, `${upstream}.pid`);
 const logPathFor = (upstream) => path.join(DIR, `${upstream}.log`);
 
-// 每上游的配置模板：cc-<name>-bridge/.env.example（随包发布，按上游区分）。上游未
+// 每上游的配置模板：cc-<name>-bridge/<name>.env.example（随包发布，按上游区分）。上游未
 // 注册时返回 null。`cc-bridge <upstream> config` 首次生成配置时复制的就是它。
 const templatePath = (upstream) => {
   const entry = REGISTRY[upstream];
   if (!entry) return null;
-  return path.resolve(__dirname, '..', entry.dir, '.env.example');
+  return path.resolve(__dirname, '..', entry.dir, `${upstream}.env.example`);
 };
 
 function ensureDir() {
@@ -169,8 +169,8 @@ function validate(cfg) {
   return missing;
 }
 
-// Create ~/.cc-bridge/<upstream>.env from the upstream's bundled .env.example if absent.
-// 模板按上游区分：cc-<name>-bridge/.env.example（找不到则写一行占位注释）。
+// Create ~/.cc-bridge/<upstream>.env from the upstream's bundled <upstream>.env.example if absent.
+// 模板按上游区分：cc-<name>-bridge/<name>.env.example（找不到则写一行占位注释）。
 function ensureConfig(upstream) {
   ensureDir();
   const CONFIG = configPathFor(upstream);

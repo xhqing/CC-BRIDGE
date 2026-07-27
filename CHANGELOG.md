@@ -2,6 +2,18 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.1.2] - 2026-07-27
+
+### Fixed
+
+- **GLM 默认端口模板修正为 8788**：`cc-glm-bridge/glm.env.example` 的 `PROXY_PORT` 由 8787 改为 8788。8787 与仍服务主链路的旧 claude-proxy 冲突——复制模板生成 `~/.cc-bridge/glm.env` 时若忘改端口，cc-bridge daemon 会与 claude-proxy 抢同一端口，且 `cc-bridge restart` 会把 claude-proxy 当残留清掉。改为 8788 后两者并行不撞。
+- **三上游默认端口顺延、互不冲突**：Kimi 模板 8788→8789、Qwen 模板 8789→8790，给 GLM 让出 8788；三个上游默认端口连续（GLM 8788 / Kimi 8789 / Qwen 8790），并存时各不撞。
+
+### Changed
+
+- **模板文件名改为 `<upstream>.env.example`**：三个上游的配置模板由 `.env.example` 重命名为 `<upstream>.env.example`（即 `glm.env.example` / `kimi.env.example` / `qwen.env.example`），与运行配置 `~/.cc-bridge/<upstream>.env` 命名对齐——看到模板名就知道它生成哪个运行配置。`core/config.js` 的 `templatePath()` 同步改为查找 `<upstream>.env.example`，各 README / 子目录 README 引用一并更新。
+- **模板标注运行配置绝对路径**：三个 `cc-*-bridge/<upstream>.env.example` 顶部注明该上游运行配置最终落地路径（GLM → `~/.cc-bridge/glm.env`、Kimi → `~/.cc-bridge/kimi.env`、Qwen → `~/.cc-bridge/qwen.env`），避免复制模板后找错文件位置。
+
 ## [2.1.1] - 2026-07-27
 
 ### Added

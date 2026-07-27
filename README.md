@@ -270,7 +270,7 @@ etc.
 | `core/util.js`           | port cleanup / health probe / readiness wait       |
 | `cc-glm-bridge/adapter.js`  | GLM (z.ai GLM-5.2) adapter — body adaptation, force-max, model caps |
 | `cc-kimi-bridge/`, `cc-qwen-bridge/` | reserved placeholders (adapter + README)    |
-| `cc-<name>-bridge/.env.example` | per-upstream config template (GLM filled; Kimi/Qwen reserved) |
+| `cc-<name>-bridge/<name>.env.example` | per-upstream config template (GLM filled; Kimi/Qwen reserved) |
 | `~/.cc-bridge/<upstream>.env` | real config (yours, gitignored, never packaged) |
 
 ## Notes / caveats

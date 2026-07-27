@@ -198,7 +198,7 @@ CC-BRIDGE 就是为扩展而设计的。新增一个上游（如 `kimi`）：
 | `core/util.js`            | 端口清理 / health 探测 / 就绪等待                 |
 | `cc-glm-bridge/adapter.js`   | GLM（z.ai GLM-5.2）adapter——请求体适配、强制 max、模型上限表 |
 | `cc-kimi-bridge/`、`cc-qwen-bridge/` | 预留占位（adapter + README）                |
-| `cc-<name>-bridge/.env.example` | 按上游的配置模板（GLM 已填；Kimi/Qwen 预留）  |
+| `cc-<name>-bridge/<name>.env.example` | 按上游的配置模板（GLM 已填；Kimi/Qwen 预留）  |
 | `~/.cc-bridge/<upstream>.env` | 真实配置（你的，gitignored，绝不打包）        |
 
 ## 注意 / 限制

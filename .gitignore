@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 
-# Environment variables (keep .env.example tracked)
+# Environment variables (keep *.env.example tracked)
 .env
 .env.local
 .env.*.local

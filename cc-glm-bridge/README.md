@@ -23,7 +23,7 @@ CC-BRIDGE 框架的 GLM 上游适配器，对接 [z.ai](https://z.ai) 的 GLM-5.
 
 ## 配置
 
-配置文件：`~/.cc-bridge/glm.env`（模板见本目录 [`.env.example`](.env.example)）。
+配置文件：`~/.cc-bridge/glm.env`（模板见本目录 [`glm.env.example`](glm.env.example)）。
 
 主要字段：`API_BASE`（z.ai 接口地址）、`API_KEY`（逗号分隔多个 z.ai KEY，支持容灾）、`MODEL_MAP`（`spoof->target` 映射对，支持多对，默认 `claude-opus-4-8->glm-5.2`）。
 

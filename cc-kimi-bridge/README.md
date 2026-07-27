@@ -12,6 +12,6 @@ CC-BRIDGE 框架的 Kimi（月之暗面）上游适配器。
    - `modelMaxTokens`（Kimi 各模型的 max_tokens 表）
    - `adaptRequestBody(obj, ctx)`（把 Anthropic 请求体适配为 Kimi 友好的形式）
 2. 在 [`../core/adapter.js`](../core/adapter.js) 的注册表里把 `kimi` 的 `implemented` 改为 `true`。
-3. 核对配置字段（本目录已有预留模板 [`.env.example`](.env.example)，按实际可用模型 / 窗口填入）。
+3. 核对配置字段（本目录已有预留模板 [`kimi.env.example`](kimi.env.example)，按实际可用模型 / 窗口填入）。
 
 实现后即可用 `cc-bridge kimi start` / `cc-bridge kimi daemon` / `cc-bridge kimi config` 等命令，配置文件为 `~/.cc-bridge/kimi.env`。
