@@ -55,10 +55,13 @@ function stripCacheControl(node) {
 function isClassifierRequest(obj) {
   const sys = obj && obj.system;
   if (!sys) return false;
+  // 用 includes 而非 startsWith：CC 发来的 system 第一个 block 常是 billing header
+  //（x-anthropic-billing-header:），join 后字符串以 billing 开头，startsWith 会漏判。
+  // 这段文字足够特定（只出现在 CC auto mode 安全分类器的 system），不会误判其它请求。
   const text = typeof sys === 'string'
     ? sys
     : (Array.isArray(sys) ? sys.map((b) => (b && b.text) || '').join('') : '');
-  return text.startsWith('You are a security monitor for autonomous AI coding agents');
+  return text.includes('You are a security monitor for autonomous AI coding agents');
 }
 
 module.exports = {

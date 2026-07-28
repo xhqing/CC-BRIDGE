@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.2.4] - 2026-07-28
+
+### Fixed
+
+- **修复 CC 安全分类器路由漏判**：2.2.3 引入的 `isClassifierRequest` 原用 `startsWith` 识别分类器 system，但 CC 发来的 system 第一个 block 是 billing header（`x-anthropic-billing-header:`），join 后字符串以 billing 开头，`startsWith("You are a security monitor...")` 漏判，导致分类器请求仍走 glm-5.2（没路由到 flash）。改为 `includes` 后正确识别（这段文字足够特定，不会误判其它请求）。即 2.2.3 的路由实际未生效，2.2.4 才真正让分类器走 glm-4.5-flash。
+
 ## [2.2.3] - 2026-07-28
 
 ### Changed
