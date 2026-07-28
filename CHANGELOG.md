@@ -2,6 +2,16 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.2.2] - 2026-07-28
+
+### Added
+
+- **响应侧缓存命中观测日志**：`core/server.js` 新增 `formatCacheUsage()`，从上游响应的 usage 对象提取缓存命中信息（命中读取 / 写入 token 数、命中率），在 streaming 的 `message_start` 事件与 non-streaming 响应体里旁路记日志，不改写任何请求 / 响应内容。兼容 Anthropic 风格（`cache_read_input_tokens` / `cache_creation_input_tokens`）与 OpenAI 风格（`prompt_tokens_details.cached_tokens`）两种 usage 字段；上游未返回缓存字段时列出 usage 的 keys 便于诊断。受 `PROXY_LOG` 控制，关闭时零开销。用途是长期观测上游 context caching 是否生效、命中率随对话如何变化、上游规则是否变动——部分上游（如 z.ai）的缓存是隐式的（按内容相似度自动匹配、不读 `cache_control`），所以观测缓存的正确方向是看 usage，而非在请求体打 `cache_control`。
+
+### Changed
+
+- **`glm.env.example` 补充 `PROXY_DUMP` 配置说明**：模板顶部字段说明与配置块补上 `PROXY_DUMP`（改写后的请求体落盘到 `~/.cc-bridge/dumps/`，默认关、调试用），与 `core/server.js` 已有的 dump 能力对齐。
+
 ## [2.2.1] - 2026-07-27
 
 ### Fixed

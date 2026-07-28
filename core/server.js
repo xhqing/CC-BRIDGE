@@ -47,6 +47,47 @@ function isKeyError(status) {
   return status === 401 || status === 403;
 }
 
+// --- 缓存命中观测 ----------------------------------------------------------
+// 从上游响应的 usage 对象里提取缓存命中信息，返回一行可读日志；usage 不存在返回 null。
+// 用途：长期观测上游 context caching 的命中情况——命中率、缓存读 / 写 token 数，便于
+// 判断缓存是否生效、优化后是否提升、上游规则是否变动。
+// 说明：部分上游（如 z.ai）的缓存是隐式的（按内容相似度自动匹配，不读 cache_control），
+// 命中信息通过 usage 透传——所以观测缓存的正确方向是看 usage，而非在请求体打 cache_control。
+// 兼容两种 usage 格式（z.ai /api/anthropic 端点具体返回哪种需实测，两种都认）：
+//   · Anthropic 风格：cache_read_input_tokens / cache_creation_input_tokens / input_tokens
+//     （三者相加 ≈ 总输入；命中率 = read / 三者之和）
+//   · OpenAI 风格：prompt_tokens_details.cached_tokens（已含在 prompt_tokens 内；
+//     命中率 = cached / prompt_tokens）
+// 若 usage 存在但两种缓存字段都没有，列出 usage 的 keys，便于判断上游到底返回了什么。
+function formatCacheUsage(usage) {
+  if (!usage || typeof usage !== 'object') return null;
+
+  // Anthropic 风格
+  if (usage.cache_read_input_tokens != null || usage.cache_creation_input_tokens != null) {
+    const read = usage.cache_read_input_tokens || 0;
+    const created = usage.cache_creation_input_tokens || 0;
+    const input = usage.input_tokens || 0;
+    const output = usage.output_tokens;
+    const totalIn = read + created + input;
+    const hitPct = totalIn > 0 ? Math.round(read / totalIn * 100) : 0;
+    return `cache(anthropic): read=${read} created=${created} input=${input} out=${output != null ? output : '-'}  →  命中 ${hitPct}%`;
+  }
+
+  // OpenAI 风格
+  const details = usage.prompt_tokens_details;
+  if (details && details.cached_tokens != null) {
+    const cached = details.cached_tokens || 0;
+    const prompt = usage.prompt_tokens || 0;
+    const completion = usage.completion_tokens;
+    const hitPct = prompt > 0 ? Math.round(cached / prompt * 100) : 0;
+    return `cache(openai): cached=${cached} prompt=${prompt} completion=${completion != null ? completion : '-'}  →  命中 ${hitPct}%`;
+  }
+
+  // usage 存在但无任何缓存字段：列出 keys 供判断上游返回结构
+  const keys = Object.keys(usage).join(', ');
+  return `cache: 上游 usage 无缓存字段（keys: ${keys || '空'}）`;
+}
+
 // Create and start the bridge server from an already-loaded config + adapter.
 function startServer(cfg, adapter) {
   const PORT = cfg.PORT;
@@ -267,6 +308,16 @@ function startServer(cfg, adapter) {
                   clientRes.write(line + '\n');
                 }
                 pendingEvent = '';
+              } else if (line.startsWith('data:') && pendingEvent.includes('message_start')) {
+                // 缓存命中观测：从 message_start 的 message.usage 提取缓存命中数。
+                // 不改写内容，记日志后原样转发（usage 透传给客户端，这里只是旁路观测）。
+                try {
+                  const data = JSON.parse(line.slice(5).trim());
+                  const cu = formatCacheUsage(data.message && data.message.usage);
+                  if (cu) log('  ' + cu);
+                } catch {}
+                clientRes.write(line + '\n');
+                pendingEvent = '';
               } else {
                 clientRes.write(line + '\n');
                 if (line.trim() === '') pendingEvent = '';
@@ -289,6 +340,8 @@ function startServer(cfg, adapter) {
               const respBody = JSON.parse(raw);
               respBody.modelUsage = mu;
               if (respBody.total_cost_usd === undefined) respBody.total_cost_usd = 0;
+              const cu = formatCacheUsage(respBody.usage);
+              if (cu) log('  ' + cu);
               const modified = JSON.stringify(respBody);
               const hdrs = { ...upRes.headers, 'content-length': String(Buffer.byteLength(modified)) };
               delete hdrs['transfer-encoding'];
