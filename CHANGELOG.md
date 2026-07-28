@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.2.3] - 2026-07-28
+
+### Changed
+
+- **CC auto mode 安全分类器路由到 glm-4.5-flash**：`cc-glm-bridge/adapter.js` 新增 `isClassifierRequest()`，识别请求 system 以 "You are a security monitor for autonomous AI coding agents" 开头的 CC auto mode 安全分类器请求，将其从 glm-5.2 路由到免费的 glm-4.5-flash。CC auto 模式下，主 agent 每次工具调用前都会发一个请求给安全分类器判断该动作是否该 block——它高频（约是主对话请求数的 3 倍）且用 opus 倍率（高峰 3×、非高峰 2×），是 z.ai Coding Plan 额度消耗的大头（实测占 ~70%）。分类器属判断任务，不需要 glm-5.2 顶配，换 flash 后这部分不再消耗 Coding Plan 额度（flash 免费）。代价：安全判断降级到轻量模型（明显危险动作仍能拦，复杂 prompt injection 可能漏判，需使用者权衡）。同时，分类器走 flash 时不再强制 max reasoning（退回跟随客户端 effort），与 CC 自身「减少分类器 reasoning」的优化方向一致，降低分类器延迟。
+
 ## [2.2.2] - 2026-07-28
 
 ### Added
