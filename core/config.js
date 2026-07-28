@@ -156,6 +156,13 @@ function loadConfig(opts = {}) {
     MAX_OUTPUT_TOKENS: parseInt(get('MAX_OUTPUT_TOKENS', '0'), 10) || 0,
     VERBOSE: (get('PROXY_LOG', '1') !== '0'),
     DUMP: (get('PROXY_DUMP', '0') === '1'),
+    // CC 安全分类器路由（详见 core/classifier.js）：off=直接放行（默认，不走模型，0 消耗无判断）；
+    // on=走 agnes 免费模型（主模型失败切备用）。CLASSIFIER_MODE 未配时默认 off。
+    CLASSIFIER_MODE: (get('CLASSIFIER_MODE', 'off') || 'off').toLowerCase(),
+    AGNES_API_BASE: get('AGNES_API_BASE', ''),
+    AGNES_API_KEY: get('AGNES_API_KEY', ''),
+    AGNES_MODEL_PRIMARY: get('AGNES_MODEL_PRIMARY', 'agnes-2.5-flash'),
+    AGNES_MODEL_FALLBACK: get('AGNES_MODEL_FALLBACK', 'agnes-2.0-flash'),
     modelMapError,
     configPath: file,
   };

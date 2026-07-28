@@ -19,6 +19,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { resolvePairs } = require('./config');
+const classifier = require('./classifier');
 
 // --- 同 KEY 瞬态重试 --------------------------------------------------------
 // 上游遇瞬态错误（DNS 失败 / 连接挂断 / 429 / 5xx）时，对同一 KEY 重试 N 次、
@@ -188,6 +189,19 @@ function startServer(cfg, adapter) {
       if (clientReq.method === 'POST' && urlPath.startsWith('/v1/messages') && body.length) {
         try {
           obj = JSON.parse(body.toString('utf-8'));
+          // 分类器优先：CC 安全分类器请求走 agnes（on）或放行（off），不转发 z.ai 上游。
+          // 分类器请求高频且原本吃 opus 倍率，是 Coding Plan 额度大头；转走 agnes 免费 / 直接放行后省下。
+          if (isMessages && classifier.isClassifierRequest(obj)) {
+            classifier.handleClassifier(obj, cfg).then((result) => {
+              const respBody = JSON.stringify(result.body);
+              clientRes.writeHead(result.status, {
+                'content-type': 'application/json',
+                'content-length': Buffer.byteLength(respBody),
+              });
+              clientRes.end(respBody);
+            });
+            return;
+          }
           modelIn = obj.model || null;
           effort = obj.output_config?.effort || obj.effort || null;
           stream = obj.stream === true;

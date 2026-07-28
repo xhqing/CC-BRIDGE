@@ -2,6 +2,17 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.2.5] - 2026-07-28
+
+### Changed
+
+- **CC 安全分类器改走 agnes 免费模型（双模型容灾）+ 三态开关**：重构分类器路由（取代 2.2.3/2.2.4「路由到 glm-4.5-flash」——后者在 Coding Plan 下仍占额度）。新增 `core/classifier.js`：识别 CC auto mode 安全分类器请求后，由 `CLASSIFIER_MODE` 控制：`on` = 走 agnes 免费模型（`agnes-2.5-flash` 主，请求失败立即切 `agnes-2.0-flash`），Anthropic Messages ↔ OpenAI chat completions 协议转换；`off` = 桥直接伪造 `<block>no</block>` 放行响应，不走任何模型（0 消耗，无安全判断）。分类器高频（约是主对话 3 倍）且原本吃 opus 倍率，是 z.ai Coding Plan 额度大头（~70%）；改走免费 agnes 后这部分 0 成本。agnes 在境外，自动走系统代理（`HTTPS_PROXY` 等）；z.ai 境内直连不变。`server.js` 在转发前拦截分类器请求；`adapter.js` 移除 2.2.4 的 flash 路由（分类器不再经 adapter）。
+
+### Added
+
+- **配置项**（`glm.env`，示例见 `glm.env.example`）：`CLASSIFIER_MODE`（on/off，默认 off）、`AGNES_API_BASE`、`AGNES_API_KEY`、`AGNES_MODEL_PRIMARY`、`AGNES_MODEL_FALLBACK`。
+- **依赖**：`https-proxy-agent`（agnes 走系统代理用；node 的 https 不像 curl 自动读 HTTPS_PROXY）。
+
 ## [2.2.4] - 2026-07-28
 
 ### Fixed

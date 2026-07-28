@@ -47,23 +47,6 @@ function stripCacheControl(node) {
   }
 }
 
-// 识别 CC auto mode 的安全分类器请求（system 以 "You are a security monitor for autonomous AI coding
-// agents" 开头）。CC auto 模式下，主 agent 每次工具调用前都发一个请求给安全分类器判断该动作是否该
-// block；它高频（每工具调用一次，约是主对话的 3 倍）且用 opus 倍率，是 Coding Plan 额度消耗的大头。
-// 分类器属判断任务，不需要 glm-5.2 顶配，故路由到免费的 glm-4.5-flash——省 ~70% 额度，代价是安全
-// 判断降级到轻量模型（对明显的危险动作仍有效，复杂 prompt injection 可能漏判，需使用者权衡）。
-function isClassifierRequest(obj) {
-  const sys = obj && obj.system;
-  if (!sys) return false;
-  // 用 includes 而非 startsWith：CC 发来的 system 第一个 block 常是 billing header
-  //（x-anthropic-billing-header:），join 后字符串以 billing 开头，startsWith 会漏判。
-  // 这段文字足够特定（只出现在 CC auto mode 安全分类器的 system），不会误判其它请求。
-  const text = typeof sys === 'string'
-    ? sys
-    : (Array.isArray(sys) ? sys.map((b) => (b && b.text) || '').join('') : '');
-  return text.includes('You are a security monitor for autonomous AI coding agents');
-}
-
 module.exports = {
   name: 'glm',
   displayName: 'GLM-5.2 (z.ai)',
@@ -87,14 +70,7 @@ module.exports = {
   //   · tools 尾部打 cache_control（触发 z.ai context caching）
   adaptRequestBody(obj, ctx) {
     if (!obj || typeof obj !== 'object') return obj;
-    let targetModel = (ctx && ctx.target) || this.defaultTarget;
-
-    // CC auto mode 安全分类器 → 路由 glm-4.5-flash（免费、不占 Coding Plan 额度）。
-    const isClassifier = isClassifierRequest(obj);
-    if (isClassifier) {
-      targetModel = 'glm-4.5-flash';
-      obj.model = 'glm-4.5-flash';
-    }
+    const targetModel = (ctx && ctx.target) || this.defaultTarget;
 
     // thinking.type: adaptive → enabled
     if (obj.thinking && obj.thinking.type === 'adaptive') {
@@ -104,9 +80,7 @@ module.exports = {
     // reasoning_effort：强制 max，或跟随客户端 effort 映射。
     // 强制模式下三条保险：reasoning_effort=max + thinking.enabled + output_config.effort=max，
     // 确保 z.ai 无论读哪个字段都按 max 思考。
-    // 强制 GLM-5.2 始终 max 思考；分类器走 flash 时例外——分类器追求低延迟，不强 max（退回跟随
-    // 客户端 effort），与 CC 自身「减少分类器 reasoning」的优化方向一致，避免无谓拉高延迟。
-    if (this.forceMaxEffort && !isClassifier) {
+    if (this.forceMaxEffort) {
       obj.reasoning_effort = 'max';
       if (!obj.thinking || obj.thinking.type !== 'enabled') {
         obj.thinking = { type: 'enabled' };
