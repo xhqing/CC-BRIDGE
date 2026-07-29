@@ -2,6 +2,16 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.3.0] - 2026-07-29
+
+### Added
+
+- **按模型配置思考等级（`MODEL_THINKING`）**：`~/.cc-bridge/glm.env` 新增 `MODEL_THINKING`（格式 `target->level,...`，取值 `max` / `high` / `none`）与 `MODEL_THINKING_DEFAULT`（未列出模型的兜底等级，默认 `max`），可对每个 GLM target 模型单独钉死思考等级、忽略 Claude Code 的 `/effort` 档位。`none` = 不思考（`thinking.type=disabled` + `reasoning_effort=none` + `output_config.effort=none` 三处对称写入）；`max` / `high` 启用思考并写入对应等级。
+
+### Changed
+
+- **移除全局 `forceMaxEffort` 开关**：原 GLM adapter 的 `forceMaxEffort: true` 一刀切强制所有模型 max 思考，改为按 target 模型查 `MODEL_THINKING` 决定等级；未配置时通过 `defaultThinking: 'max'` 保持原有「全 max」默认行为（向后兼容）。`core/config.js` 新增 `parseModelThinking` 解析；`cc-glm-bridge/adapter.js` 的 `adaptRequestBody` 按 `ctx.target` 查表、三字段对称写入；`core/server.js` 启动时注入配置并更新 banner；同步更新 `glm.env.example` 与全部 README（项目主文档 + glm / qwen / kimi bridge）。
+
 ## [2.2.5] - 2026-07-28
 
 ### Changed
