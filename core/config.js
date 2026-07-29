@@ -85,6 +85,43 @@ function parseModelMap(rawMap, rawSpoof, rawTarget) {
   return [];
 }
 
+// 解析按模型的思考等级配置为 { map, defaultLevel }。紧凑映射写法：
+//   MODEL_THINKING="modelA->levelA,modelB->levelB"
+// level 取值仅限 max / high / none（none=不思考），覆盖整个上游的思考行为：每个 target
+// 模型钉死一个等级，忽略 Claude Code 传来的 /effort 档位。MODEL_THINKING_DEFAULT 为未列出
+// 模型的兜底等级（不配则返回 null，由 server 用 adapter.defaultThinking 补齐，GLM 默认 max）。
+// 格式错误抛 Error（非法 level / 缺边 / 空 entry），loadConfig 捕获并入 validate 报告，
+// 保持不抛契约。
+function parseModelThinking(rawMap, rawDefault) {
+  const LEVELS = ['max', 'high', 'none'];
+  const map = {};
+  const m = (rawMap || '').trim();
+  if (m) {
+    for (const part of m.split(',')) {
+      const seg = part.trim();
+      if (!seg) continue;
+      const arrow = seg.indexOf('->');
+      if (arrow === -1) {
+        throw new Error(`invalid entry "${seg}" — expected "model->level"`);
+      }
+      const model = seg.slice(0, arrow).trim();
+      const level = seg.slice(arrow + 2).trim().toLowerCase();
+      if (!model || !level) {
+        throw new Error(`invalid entry "${seg}" — both model and level are required around '->'`);
+      }
+      if (!LEVELS.includes(level)) {
+        throw new Error(`invalid level "${level}" in "${seg}" — must be one of: ${LEVELS.join(', ')}`);
+      }
+      map[model] = level;
+    }
+  }
+  const def = (rawDefault || '').trim().toLowerCase();
+  if (def && !LEVELS.includes(def)) {
+    throw new Error(`invalid MODEL_THINKING_DEFAULT "${def}" — must be one of: ${LEVELS.join(', ')}`);
+  }
+  return { map, defaultLevel: def || null };
+}
+
 // 收集所有 API KEY，支持两种写法（可混用、合并去空、不去重）：
 //   1) 编号变量 API_KEY_1 / API_KEY_2 / API_KEY_3 …（推荐）。每个 KEY 独立成行，可单独
 //      写注释标注账号来源（如「# 工作账号」「# 个人账号」），也可单独注释掉整行来临时
@@ -142,6 +179,19 @@ function loadConfig(opts = {}) {
     modelMapError = e.message;
   }
 
+  // 按模型思考等级（MODEL_THINKING）。解析失败不抛——错误存入 thinkingError，由 validate
+  // 报给用户，保持 loadConfig「永不抛错」的契约。
+  let THINK_MAP = {};
+  let THINK_DEFAULT = null;
+  let thinkingError = null;
+  try {
+    const t = parseModelThinking(get('MODEL_THINKING', ''), get('MODEL_THINKING_DEFAULT', ''));
+    THINK_MAP = t.map;
+    THINK_DEFAULT = t.defaultLevel;
+  } catch (e) {
+    thinkingError = e.message;
+  }
+
   return {
     upstream,
     PORT: parseInt(get('PROXY_PORT', '8787'), 10) || 8787,
@@ -163,7 +213,12 @@ function loadConfig(opts = {}) {
     AGNES_API_KEY: get('AGNES_API_KEY', ''),
     AGNES_MODEL_PRIMARY: get('AGNES_MODEL_PRIMARY', 'agnes-2.5-flash'),
     AGNES_MODEL_FALLBACK: get('AGNES_MODEL_FALLBACK', 'agnes-2.0-flash'),
+    // 按模型思考等级：{ modelId: level(max/high/none) }。未列出的模型由 server 用
+    // adapter 默认等级兜底。THINK_DEFAULT=null → 用 adapter.defaultThinking（GLM 为 max）。
+    THINK_MAP,
+    THINK_DEFAULT,
     modelMapError,
+    thinkingError,
     configPath: file,
   };
 }
@@ -173,6 +228,7 @@ function validate(cfg) {
   if (!cfg.API_BASE) missing.push('API_BASE');
   if (!cfg.KEYS.length) missing.push('API_KEY_1 (or legacy API_KEY)');
   if (cfg.modelMapError) missing.push(`MODEL_MAP (${cfg.modelMapError})`);
+  if (cfg.thinkingError) missing.push(`MODEL_THINKING (${cfg.thinkingError})`);
   return missing;
 }
 
@@ -231,6 +287,16 @@ function showConfig(upstream) {
     console.log(`model map     : (unset — will use adapter default spoof → target)`);
   }
   if (cfg.modelMapError) console.log(`MODEL_MAP err : ${cfg.modelMapError}`);
+  const thinkEntries = Object.entries(cfg.THINK_MAP || {});
+  if (thinkEntries.length) {
+    console.log(`thinking      : per-model  (default=${cfg.THINK_DEFAULT || 'adapter max'})`);
+    thinkEntries.forEach(([m, l]) => {
+      console.log(`              ${m} → ${l}`);
+    });
+  } else {
+    console.log(`thinking      : (unset — all models use default ${cfg.THINK_DEFAULT || 'adapter max'})`);
+  }
+  if (cfg.thinkingError) console.log(`MODEL_THINKING err : ${cfg.thinkingError}`);
   console.log(`API_KEYs      : ${cfg.KEYS.length}`);
   cfg.KEYS.forEach((k, i) => {
     console.log(`  ${String('#' + (i + 1)).padEnd(8)} ${mask(k)}`);
@@ -254,6 +320,6 @@ function resolvePairs(cfg, adapter) {
 
 module.exports = {
   configDir, configPathFor, pidPathFor, logPathFor, templatePath,
-  parseEnv, parseModelMap, resolvePairs, resolveConfigPath, loadConfig, validate,
+  parseEnv, parseModelMap, parseModelThinking, resolvePairs, resolveConfigPath, loadConfig, validate,
   ensureConfig, importConfig, editConfig, showConfig, mask, ensureDir,
 };

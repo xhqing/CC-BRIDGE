@@ -167,9 +167,9 @@ cc-bridge claude -- -p "hello"   # 也接受 "--" 分隔符
 - **瞬态错误不熔断 KEY。** `5xx` 或网络抖动是网关问题，不是 KEY 的错——不连累无辜 KEY。
 - **重试有界。** 每条请求最多尝试 `KEY 数 ×（1 + 2 次重试）` 次，容灾总会终止。
 
-## 始终 max 思考（GLM）
+## 按模型配思考等级（GLM）
 
-GLM adapter 设了 `forceMaxEffort: true`，每条请求都强制 `reasoning_effort = max`、`output_config.effort = max`、`thinking.type = enabled`——三条保险让 GLM-5.2 始终以最高思考等级运行，不受客户端 `/effort` 档位影响。在 [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) 里把 `forceMaxEffort` 设为 `false` 可退回「跟随客户端 effort」的行为。
+每个 GLM target 模型通过 `~/.cc-bridge/glm.env` 里的 `MODEL_THINKING` 钉死一个思考等级（如 `MODEL_THINKING=glm-5.2->max,glm-4.6->none`），取值 `max` / `high` / `none`（`none` = 不思考）。每条请求 adapter 按 target 模型查等级，对称写入三个字段——`thinking.type`（`enabled`/`disabled`）、`reasoning_effort`、`output_config.effort`——从而钉死等级、不受客户端 `/effort` 档位影响。未列出的模型走 `MODEL_THINKING_DEFAULT`（默认 `max`，由 [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) 的 `defaultThinking` 设定）。
 
 ## 添加新上游
 
@@ -177,7 +177,7 @@ CC-BRIDGE 就是为扩展而设计的。新增一个上游（如 `kimi`）：
 
 1. **创建 adapter** `cc-kimi-bridge/adapter.js`，实现 adapter 接口（见 [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) 和 [core/adapter.js](core/adapter.js) 的注释）：
    - `name`、`displayName`、`defaultTarget`、`defaultSpoof`
-   - `forceMaxEffort`（是否强制最高思考等级）
+   - `defaultThinking`（默认思考等级：`max` / `high` / `none`）
    - `modelMaxTokens`（`{ 模型ID: 最大输出token }`）
    - `adaptRequestBody(obj, ctx)`——为该上游适配 Anthropic 请求体；`ctx = { target }`
 2. **注册** 在 [core/adapter.js](core/adapter.js) 里把 `kimi` 的 `implemented` 改为 `true`。

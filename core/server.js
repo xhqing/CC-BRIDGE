@@ -113,6 +113,12 @@ function startServer(cfg, adapter) {
     contextWindow: cfg.CONTEXT_WINDOW,
     maxOutputTokens: cfg.MAX_OUTPUT_TOKENS,
   }));
+  // 把按模型思考等级配置注入 adapter：modelThinking（按 target 等级表）+ thinkingDefault
+  // （MODEL_THINKING_DEFAULT，未配则用 adapter.defaultThinking）。adaptRequestBody 据此为
+  // 每个请求按 target 模型钉死思考等级（max/high/none），忽略客户端 effort。
+  adapter.modelThinking = cfg.THINK_MAP || {};
+  adapter.thinkingDefault = cfg.THINK_DEFAULT || adapter.defaultThinking;
+
   const apiBase = cfg.API_BASE;
   const upstream = new URL(apiBase);
 
@@ -524,7 +530,9 @@ function startServer(cfg, adapter) {
     console.log(`[bridge] api base     : ${apiBase}`);
     console.log(`[bridge] spoof → target : ${pairs.map((p) => `${p.spoof} → ${p.target}`).join('   |   ')}`);
     console.log(`[bridge] API keys     : ${KEYS.length}`);
-    console.log(`[bridge] force max    : ${adapter.forceMaxEffort ? 'on' : 'off'}`);
+    const thinkPerModel = Object.entries(adapter.modelThinking || {})
+      .map(([m, l]) => `${m}=${l}`).join(', ');
+    console.log(`[bridge] thinking     : default=${adapter.thinkingDefault}${thinkPerModel ? '  per-model: ' + thinkPerModel : ''}`);
     console.log(`[bridge] logging      : ${VERBOSE ? 'on' : 'off'}`);
   });
 

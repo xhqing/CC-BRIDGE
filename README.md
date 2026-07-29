@@ -228,14 +228,17 @@ works). They share one `API_BASE`. The bridge decides when to rotate per request
 - **Bounded retries.** Each request tries at most `keys × (1 + 2 retries)` calls,
   so failover always terminates.
 
-## Always-max thinking (GLM)
+## Per-model thinking level (GLM)
 
-The GLM adapter sets `forceMaxEffort: true`, so on every request it forces
-`reasoning_effort = max`, `output_config.effort = max`, and
-`thinking.type = enabled` — three guarantees that GLM-5.2 runs at maximum
-thinking regardless of the client's `/effort` tier. Set `forceMaxEffort: false`
-in [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) to fall back to
-client-following behavior.
+Each GLM target model gets a pinned thinking level via `MODEL_THINKING` in
+`~/.cc-bridge/glm.env` (e.g. `MODEL_THINKING=glm-5.2->max,glm-4.6->none`).
+Levels are `max` / `high` / `none` (`none` = no thinking). On every request the
+adapter looks up the target model's level and writes it to three fields in
+concert — `thinking.type` (`enabled`/`disabled`), `reasoning_effort`, and
+`output_config.effort` — so the level holds regardless of the client's
+`/effort` tier. Models not listed fall back to `MODEL_THINKING_DEFAULT`
+(default `max`, set by `defaultThinking` in
+[cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js)).
 
 ## Adding a new upstream
 
@@ -245,7 +248,7 @@ CC-BRIDGE is built to grow. To add an upstream (e.g. `kimi`):
    interface (see [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) and the comments
    in [core/adapter.js](core/adapter.js)):
    - `name`, `displayName`, `defaultTarget`, `defaultSpoof`
-   - `forceMaxEffort` (whether to force maximum thinking)
+   - `defaultThinking` (default thinking level: `max` / `high` / `none`)
    - `modelMaxTokens` (`{ modelId: maxOutputTokens }`)
    - `adaptRequestBody(obj, ctx)` — adapt the Anthropic request body for this
      upstream; `ctx = { target }`

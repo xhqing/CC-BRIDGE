@@ -22,7 +22,9 @@ const MODEL_MAX_TOKENS = {
 };
 
 // Claude Code 的 output_config.effort 等级 → GLM 的 reasoning_effort。
-// 依据 z.ai Coding Plan 接入文档的映射表。仅在 forceMaxEffort=false（跟随客户端）时用。
+// 依据 z.ai Coding Plan 接入文档的映射表。预留：当前主路径按模型钉死思考等级（见
+// MODEL_THINKING），不读客户端 effort，故本函数暂未被调用；保留供将来「auto（跟随
+// 客户端 effort）」模式使用。
 function mapEffortToGLM(effort) {
   if (!effort) return null;
   const e = String(effort).toLowerCase();
@@ -52,16 +54,16 @@ module.exports = {
   displayName: 'GLM-5.2 (z.ai)',
   defaultTarget: 'glm-5.2',
   defaultSpoof: 'claude-opus-4-8',
-  // 强制 GLM-5.2 始终以 max 思考等级运行：无论 Claude Code 传来什么 effort，都把
-  // reasoning_effort 钉为 'max'（并同步 output_config.effort='max'、确保 thinking 启用）。
-  // 设为 false 则退回「跟随客户端 effort 映射」的行为（见 mapEffortToGLM）。
-  forceMaxEffort: true,
+  // 默认思考等级（max / high / none）。仅当 MODEL_THINKING 未列出某模型、且
+  // MODEL_THINKING_DEFAULT 也未配时用它兜底。server 启动时会把用户配置注入
+  // modelThinking（按模型等级表）和 thinkingDefault（MODEL_THINKING_DEFAULT）。
+  defaultThinking: 'max',
   modelMaxTokens: MODEL_MAX_TOKENS,
 
   // 改写 Anthropic 请求体（GLM 专属适配）。ctx = { target }。
   // 改写项：
-  //   · thinking.type: adaptive → enabled （z.ai 只认 enabled/disabled）
-  //   · reasoning_effort：强制 max 或按 effort 映射
+  //   · thinking / reasoning_effort：按 target 模型查 MODEL_THINKING 的等级（max/high/none）
+  //     钉死，忽略客户端 effort；未列出的模型用默认等级（见 defaultThinking）
   //   · 剥离 context_management （Claude Code 专有，z.ai 不识别）
   //   · 清洗 metadata.user_id （设备指纹/session_id 发给 z.ai 无意义且泄露隐私）
   //   · 递归剥离 cache_control （随后按需在 tools 尾部重新打标）
@@ -72,25 +74,24 @@ module.exports = {
     if (!obj || typeof obj !== 'object') return obj;
     const targetModel = (ctx && ctx.target) || this.defaultTarget;
 
-    // thinking.type: adaptive → enabled
-    if (obj.thinking && obj.thinking.type === 'adaptive') {
-      obj.thinking.type = 'enabled';
-    }
-
-    // reasoning_effort：强制 max，或跟随客户端 effort 映射。
-    // 强制模式下三条保险：reasoning_effort=max + thinking.enabled + output_config.effort=max，
-    // 确保 z.ai 无论读哪个字段都按 max 思考。
-    if (this.forceMaxEffort) {
-      obj.reasoning_effort = 'max';
-      if (!obj.thinking || obj.thinking.type !== 'enabled') {
-        obj.thinking = { type: 'enabled' };
-      }
-      if (!obj.output_config || typeof obj.output_config !== 'object') obj.output_config = {};
-      obj.output_config.effort = 'max';
+    // 思考等级：按 target 模型查 MODEL_THINKING（server 启动时注入 this.modelThinking），
+    // 未列出则用 this.thinkingDefault（MODEL_THINKING_DEFAULT）→ 再退 this.defaultThinking。
+    // 等级 max/high/none，钉死后忽略客户端 effort。三处字段（thinking.type +
+    // reasoning_effort + output_config.effort）对称写入，确保 z.ai 无论读哪个都一致：
+    //   none  → thinking.disabled + reasoning_effort=none + effort=none（不思考）
+    //   max/high → thinking.enabled + reasoning_effort=level + effort=level
+    const level =
+      (this.modelThinking && this.modelThinking[targetModel]) ||
+      this.thinkingDefault || this.defaultThinking || 'max';
+    if (!obj.output_config || typeof obj.output_config !== 'object') obj.output_config = {};
+    if (level === 'none') {
+      obj.thinking = { type: 'disabled' };
+      obj.reasoning_effort = 'none';
+      obj.output_config.effort = 'none';
     } else {
-      const effort = obj.output_config?.effort || obj.effort;
-      const glmEffort = mapEffortToGLM(effort);
-      if (glmEffort) obj.reasoning_effort = glmEffort;
+      obj.thinking = { type: 'enabled' };
+      obj.reasoning_effort = level;
+      obj.output_config.effort = level;
     }
 
     // 剥离 context_management

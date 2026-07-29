@@ -8,7 +8,7 @@ CC-BRIDGE 框架的 Kimi（月之暗面）上游适配器。
 
 1. 在本目录创建 `adapter.js`，实现统一 adapter 接口（参考 [`../cc-glm-bridge/adapter.js`](../cc-glm-bridge/adapter.js) 与 [`../core/adapter.js`](../core/adapter.js) 的接口注释）：
    - `name` / `displayName` / `defaultTarget` / `defaultSpoof`
-   - `forceMaxEffort`（是否强制最高思考等级）
+   - `defaultThinking`（默认思考等级 `max`/`high`/`none`）
    - `modelMaxTokens`（Kimi 各模型的 max_tokens 表）
    - `adaptRequestBody(obj, ctx)`（把 Anthropic 请求体适配为 Kimi 友好的形式）
 2. 在 [`../core/adapter.js`](../core/adapter.js) 的注册表里把 `kimi` 的 `implemented` 改为 `true`。

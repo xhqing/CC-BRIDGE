@@ -10,9 +10,12 @@
 //   displayName      展示名（日志 / health 用）
 //   defaultTarget    默认 TARGET_MODEL（配置未填时兜底）
 //   defaultSpoof     默认 SPOOF_MODEL
-//   forceMaxEffort   是否强制模型始终以最高思考等级运行
+//   defaultThinking  默认思考等级（max/high/none）；MODEL_THINKING 未列某模型、且未配
+//                    MODEL_THINKING_DEFAULT 时用它兜底（GLM 默认 max）
 //   modelMaxTokens   { modelId: maxOutputTokens } 表，用于钳 max_tokens
-//   adaptRequestBody(obj, ctx)  改写 Anthropic 请求体（上游专属适配），ctx = { target }
+//   adaptRequestBody(obj, ctx)  改写 Anthropic 请求体（上游专属适配），ctx = { target }；
+//                   内部按 ctx.target 查 this.modelThinking（运行时由 server 从 MODEL_THINKING
+//                   注入）决定思考等级，this.thinkingDefault 为兜底
 
 const REGISTRY = {
   glm: { dir: 'cc-glm-bridge', implemented: true },
