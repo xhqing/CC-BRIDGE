@@ -34,7 +34,7 @@ Commands:
   cc-bridge config path           print config file path
   cc-bridge config --import <p>   import an existing .env into ~/.cc-bridge/<upstream>.env
   cc-bridge update | --update     self-update to the latest GitHub Release
-  cc-bridge rollback | --rollback  rollback to the previous version
+  cc-bridge rollback [version] | --rollback [version]  rollback to a specific or previous version
   cc-bridge version | -v | --version   print version
   cc-bridge help | -h | --help    this help
 
@@ -42,6 +42,8 @@ Examples:
   cc-bridge start                 # default upstream (${DEFAULT_UPSTREAM})
   cc-bridge ${DEFAULT_UPSTREAM} daemon       # explicit upstream
   cc-bridge ${DEFAULT_UPSTREAM} config show
+  cc-bridge rollback              # rollback to previous version
+  cc-bridge rollback 2.3.0        # rollback to specific version
 
 Options:
   --config <path>                 use this config file instead of ~/.cc-bridge/<upstream>.env
@@ -184,7 +186,7 @@ async function main() {
     case 'rollback':
     case '--rollback': {
       try {
-        runRollback();
+        runRollback(sub[0]);
       } catch (e) {
         fail(e.message);
       }

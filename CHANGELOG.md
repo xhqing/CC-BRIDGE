@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.5.0] - 2026-07-30
+
+### Changed
+
+- **`rollback` 支持指定版本**：`cc-bridge rollback`（或 `--rollback`）现在可以接受可选的版本号参数（如 `cc-bridge rollback 2.3.0`），回退到指定版本；不指定版本时保持原有行为（回退到上一个版本）。`core/update.js` 的 `runRollback()` 函数新增 `targetVersion` 参数；CLI 入口 `bin/cc-bridge.js` 将 `sub[0]` 传递给 `runRollback()`；帮助文本和示例同步更新。
+
 ## [2.4.1] - 2026-07-30
 
 ### Added

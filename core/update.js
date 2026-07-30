@@ -149,10 +149,10 @@ function runUpdate() {
 }
 
 /**
- * Rollback to the previous version.
- * Finds the release immediately before the current one in version order.
+ * Rollback to a specific version or the previous version.
+ * @param {string} [targetVersion] - Version to rollback to (e.g. "2.3.0"). If omitted, rollback to the previous release.
  */
-function runRollback() {
+function runRollback(targetVersion) {
   ensureGhReady();
 
   const current = getCurrentVersion();
@@ -162,20 +162,38 @@ function runRollback() {
   try { releases = listReleases(); }
   catch (e) { throw new Error(`failed to list releases: ${e.message}`); }
 
-  if (releases.length < 2) {
-    throw new Error('no older release available to rollback to.');
-  }
-
-  // Find the current version in the list, then pick the next one (older).
-  const idx = releases.findIndex((r) => current.parsed && cmpVersion(r.version, current.parsed) === 0);
   let target;
-  if (idx === -1) {
-    // Current version not found in releases (e.g. local dev build); rollback to the latest release.
-    target = releases[0];
-  } else if (idx + 1 < releases.length) {
-    target = releases[idx + 1];
+
+  if (targetVersion) {
+    // Rollback to a specific version
+    const targetParsed = parseVersion(targetVersion);
+    if (!targetParsed) {
+      throw new Error(`invalid version format "${targetVersion}". Expected format: X.Y.Z`);
+    }
+    if (current.parsed && cmpVersion(current.parsed, targetParsed) === 0) {
+      throw new Error(`already at version ${targetVersion}, nothing to rollback to.`);
+    }
+    target = releases.find((r) => cmpVersion(r.version, targetParsed) === 0);
+    if (!target) {
+      const available = releases.map((r) => r.tagName.replace(/^v/, '')).join(', ');
+      throw new Error(`version ${targetVersion} not found in releases. Available: ${available}`);
+    }
   } else {
-    throw new Error('already at the oldest release, nothing to rollback to.');
+    // Rollback to the previous version (original behavior)
+    if (releases.length < 2) {
+      throw new Error('no older release available to rollback to.');
+    }
+
+    // Find the current version in the list, then pick the next one (older).
+    const idx = releases.findIndex((r) => current.parsed && cmpVersion(r.version, current.parsed) === 0);
+    if (idx === -1) {
+      // Current version not found in releases (e.g. local dev build); rollback to the latest release.
+      target = releases[0];
+    } else if (idx + 1 < releases.length) {
+      target = releases[idx + 1];
+    } else {
+      throw new Error('already at the oldest release, nothing to rollback to.');
+    }
   }
 
   const targetVer = target.tagName.replace(/^v/, '');
