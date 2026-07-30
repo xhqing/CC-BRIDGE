@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.4.1] - 2026-07-30
+
+### Added
+
+- **CLI `update` / `rollback` 命令**：`cc-bridge update`（或 `--update`）从 GitHub Release 自检并安装最新版 tgz；`cc-bridge rollback`（或 `--rollback`）回退到上一个 Release。依赖 `gh`（GitHub CLI）。实现位于 `core/update.js`，CLI 入口 `bin/cc-bridge.js` 新增对应 case 分支与 help 文本。
+
 ## [2.4.0] - 2026-07-30
 
 ### Added
