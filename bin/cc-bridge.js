@@ -10,6 +10,7 @@ const { startDaemon, stopDaemon, restartDaemon, statusDaemon, tailLog } = requir
 const { runWithClaude } = require('../core/claude');
 const { probeHealth } = require('../core/util');
 const { DEFAULT_UPSTREAM, listUpstreams, isKnown, loadAdapter } = require('../core/adapter');
+const { runUpdate, runRollback } = require('../core/update');
 
 const HELP = `cc-bridge — Claude Code upstream bridge (GLM / Kimi / Qwen …)
 
@@ -32,6 +33,8 @@ Commands:
   cc-bridge config show           print config (API_KEY masked)
   cc-bridge config path           print config file path
   cc-bridge config --import <p>   import an existing .env into ~/.cc-bridge/<upstream>.env
+  cc-bridge update | --update     self-update to the latest GitHub Release
+  cc-bridge rollback | --rollback  rollback to the previous version
   cc-bridge version | -v | --version   print version
   cc-bridge help | -h | --help    this help
 
@@ -165,6 +168,26 @@ async function main() {
         break;
       }
       fail(`unknown config action '${action}'. Try: cc-bridge ${upstream} config show | path | --import <path>`);
+      break;
+    }
+
+    case 'update':
+    case '--update': {
+      try {
+        runUpdate();
+      } catch (e) {
+        fail(e.message);
+      }
+      break;
+    }
+
+    case 'rollback':
+    case '--rollback': {
+      try {
+        runRollback();
+      } catch (e) {
+        fail(e.message);
+      }
       break;
     }
 
