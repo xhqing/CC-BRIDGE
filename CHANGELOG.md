@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.5.2] - 2026-07-30
+
+### Fixed
+
+- **修复 MiMo 的 MODEL_THINKING 配置验证失败**：`parseModelThinking` 仅接受 GLM 的 `max`/`high`/`none` 等级，但 MiMo 使用 `enabled`/`disabled`。已扩展验证支持两种风格的思考等级。
+
 ## [2.5.1] - 2026-07-30
 
 ### Fixed

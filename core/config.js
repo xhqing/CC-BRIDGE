@@ -93,7 +93,10 @@ function parseModelMap(rawMap, rawSpoof, rawTarget) {
 // 格式错误抛 Error（非法 level / 缺边 / 空 entry），loadConfig 捕获并入 validate 报告，
 // 保持不抛契约。
 function parseModelThinking(rawMap, rawDefault) {
-  const LEVELS = ['max', 'high', 'none'];
+  // 支持两种风格的思考等级：
+  //   GLM: max / high / none
+  //   MiMo: enabled / disabled
+  const LEVELS = ['max', 'high', 'none', 'enabled', 'disabled'];
   const map = {};
   const m = (rawMap || '').trim();
   if (m) {
