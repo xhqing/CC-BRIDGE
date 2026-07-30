@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.5.1] - 2026-07-30
+
+### Fixed
+
+- **修复 `cc-mimo-bridge` 未包含在发布包中**：`package.json` 的 `files` 数组遗漏 `cc-mimo-bridge` 目录，导致 npm 安装后 `cc-bridge mimo start` 报错 `Cannot find module '../cc-mimo-bridge/adapter'`。已补充该目录。
+
 ## [2.5.0] - 2026-07-30
 
 ### Changed

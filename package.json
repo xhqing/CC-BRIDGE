@@ -1,6 +1,6 @@
 {
   "name": "cc-bridge",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "CC-BRIDGE — Claude Code upstream bridge framework (GLM / Kimi / Qwen …). Routes Claude Code to third-party models via spoofed whitelist IDs, unlocks /effort xhigh, and fails over across multiple API keys. GLM adapter included.",
   "private": true,
   "bin": {
@@ -12,6 +12,7 @@
     "cc-glm-bridge",
     "cc-kimi-bridge",
     "cc-qwen-bridge",
+    "cc-mimo-bridge",
     "README.md",
     "README.zh-CN.md",
     "VERSION",
