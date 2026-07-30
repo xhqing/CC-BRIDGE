@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.4.0] - 2026-07-30
+
+### Added
+
+- **Mimo bridge adapter**：新增 `cc-mimo-bridge/` 目录，包含 `adapter.js`、`mimo.env.example` 和 `README.md`，支持 Mimo 模型。在 `core/adapter.js` 的注册表中添加了 `mimo` 条目（`implemented: true`）。
+
 ## [2.3.0] - 2026-07-29
 
 ### Added
