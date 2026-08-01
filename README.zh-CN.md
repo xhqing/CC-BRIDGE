@@ -18,7 +18,7 @@
 
 一个本地透明桥接框架，让 **Claude Code 访问第三方模型上游**（GLM / Kimi / Qwen ……）。每个上游在独立的 `cc-<name>-bridge/` 目录下有一个 adapter 模块，共享同一套框架（`core/`）。作为白名单伪模型中转的附带效果，CC-BRIDGE 为非官方 provider **解锁 `/effort xhigh`**；同时支持**多 API_KEY 容灾**，并能**强制模型始终以 `max` 思考等级运行**。
 
-> **当前已实现：** `glm`（z.ai GLM-5.2）。`kimi` / `qwen` 为预留占位——见[添加新上游](#添加新上游)。
+> **当前已实现：** `glm`（z.ai GLM-5.2）、`ds`（DeepSeek-V4）、`mimo`（小米 MiMo）。`kimi` / `qwen` 为预留占位——见[添加新上游](#添加新上游)。
 
 安装一次后，在**任意目录**下用一条命令即可启动：`cc-bridge`。
 
@@ -27,6 +27,8 @@
 | 上游 | 状态 | adapter | 目标模型 |
 |------|------|---------|----------|
 | `glm` | ✅ 已实现 | [cc-glm-bridge/](cc-glm-bridge/) | z.ai 上的 GLM-5.2 |
+| `ds` | ✅ 已实现 | [cc-ds-bridge/](cc-ds-bridge/) | DeepSeek-V4（pro / flash） |
+| `mimo` | ✅ 已实现 | [cc-mimo-bridge/](cc-mimo-bridge/) | 小米 MiMo-V2.5-Pro |
 | `kimi` | 🚧 预留 | [cc-kimi-bridge/](cc-kimi-bridge/) | — |
 | `qwen` | 🚧 预留 | [cc-qwen-bridge/](cc-qwen-bridge/) | — |
 
@@ -196,9 +198,11 @@ CC-BRIDGE 就是为扩展而设计的。新增一个上游（如 `kimi`）：
 | `core/daemon.js`          | 后台进程管理（按上游的 pid + 日志）                |
 | `core/claude.js`          | 启动桥接 + 通过它启动 `claude`                    |
 | `core/util.js`            | 端口清理 / health 探测 / 就绪等待                 |
-| `cc-glm-bridge/adapter.js`   | GLM（z.ai GLM-5.2）adapter——请求体适配、强制 max、模型上限表 |
+| `cc-glm-bridge/adapter.js`   | GLM（z.ai GLM-5.2）adapter——请求体适配、按模型配思考等级、模型上限表 |
+| `cc-ds-bridge/adapter.js`    | DeepSeek（DeepSeek-V4）adapter——请求体适配、按模型配思考等级 |
+| `cc-mimo-bridge/adapter.js`  | MiMo（小米 MiMo-V2.5-Pro）adapter——请求体适配、按模型配思考开关 |
 | `cc-kimi-bridge/`、`cc-qwen-bridge/` | 预留占位（adapter + README）                |
-| `cc-<name>-bridge/<name>.env.example` | 按上游的配置模板（GLM 已填；Kimi/Qwen 预留）  |
+| `cc-<name>-bridge/<name>.env.example` | 按上游的配置模板（GLM / DeepSeek / MiMo 已填；Kimi/Qwen 预留）  |
 | `~/.cc-bridge/<upstream>.env` | 真实配置（你的，gitignored，绝不打包）        |
 
 ## 注意 / 限制

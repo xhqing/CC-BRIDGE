@@ -9,16 +9,17 @@ const { startServer } = require('../core/server');
 const { startDaemon, stopDaemon, restartDaemon, statusDaemon, tailLog } = require('../core/daemon');
 const { runWithClaude } = require('../core/claude');
 const { probeHealth } = require('../core/util');
-const { DEFAULT_UPSTREAM, listUpstreams, isKnown, loadAdapter } = require('../core/adapter');
+const { DEFAULT_UPSTREAM, listUpstreams, isKnown, isImplemented, loadAdapter } = require('../core/adapter');
 const { runUpdate, runRollback } = require('../core/update');
 
-const HELP = `cc-bridge — Claude Code upstream bridge (GLM / Kimi / Qwen …)
+const HELP = `cc-bridge — Claude Code upstream bridge (GLM / DeepSeek / MiMo / Kimi / Qwen …)
 
 Usage:
   cc-bridge [upstream] <command> [args]
 
   upstream defaults to '${DEFAULT_UPSTREAM}' if omitted.
-  known upstreams: ${listUpstreams().join(', ')}  (only '${DEFAULT_UPSTREAM}' is implemented so far)
+  known upstreams: ${listUpstreams().join(', ')}
+  implemented  : ${listUpstreams().filter((u) => isImplemented(u)).join(', ')}  (others reserved)
 
 Commands:
   cc-bridge start                 start service in background (detached)

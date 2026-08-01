@@ -22,6 +22,7 @@ const REGISTRY = {
   kimi: { dir: 'cc-kimi-bridge', implemented: false },
   qwen: { dir: 'cc-qwen-bridge', implemented: false },
   mimo: { dir: 'cc-mimo-bridge', implemented: true },
+  ds: { dir: 'cc-ds-bridge', implemented: true },
 };
 
 const DEFAULT_UPSTREAM = 'glm';

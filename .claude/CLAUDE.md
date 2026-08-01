@@ -1,6 +1,6 @@
 # CC-BRIDGE 项目指南
 
-CC-BRIDGE 是 Claude Code 上游桥接框架（GLM / Kimi / Qwen …）。通用框架在 [`core/`](../core/)，每个上游一个 `cc-<name>-bridge/adapter.js`，通过 `core/adapter.js` 注册表加载。当前已实现 `glm`（z.ai GLM-5.2），`kimi` / `qwen` 为预留。
+CC-BRIDGE 是 Claude Code 上游桥接框架（GLM / DeepSeek / MiMo / Kimi / Qwen …）。通用框架在 [`core/`](../core/)，每个上游一个 `cc-<name>-bridge/adapter.js`，通过 `core/adapter.js` 注册表加载。当前已实现 `glm`（z.ai GLM-5.2）、`ds`（DeepSeek-V4）、`mimo`（小米 MiMo），`kimi` / `qwen` 为预留。
 
 ## 架构要点
 

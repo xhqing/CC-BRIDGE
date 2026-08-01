@@ -2,6 +2,21 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.6.0] - 2026-08-01
+
+### Added
+
+- **DeepSeek bridge adapter（`cc-ds-bridge`）**：新增 `cc-ds-bridge/` 目录，含 `adapter.js`、`ds.env.example`、`README.md`，对接 DeepSeek-V4 系列（`deepseek-v4-pro` / `deepseek-v4-flash`），经 DeepSeek 官方 Anthropic 兼容端点（`https://api.deepseek.com/anthropic`）接入。在 `core/adapter.js` 注册表新增 `ds` 条目（`implemented: true`）。
+  - **思考等级沿用 GLM 模型**：DeepSeek-V4 思考三态（Non-think / Think High / Think Max）与 GLM 的 `none` / `high` / `max` 一一对应，复用同一套 `MODEL_THINKING` 配置与三字段对称写入逻辑（`thinking.type` + `reasoning_effort` + `output_config.effort`）；默认端口 `8792`（glm 8788 / kimi 8789 / qwen 8790 / mimo 8791 / ds 8792）。
+  - **与 GLM/MiMo 的差异**：DeepSeek 官方兼容表明确 `cache_control` 标记为 Ignored（其 Context Caching 是隐式自动的），故 adapter 不在 `tools` 尾部打 `cache_control`（GLM/MiMo 会打），仅剥离客户端的 `cache_control` 以避免请求体膨胀；缓存命中由 framework 从上游 `usage` 旁路观测。`metadata.user_id` 虽被 DeepSeek 支持（做限流隔离），但 CC 传的是设备指纹 / session_id，对单用户限流无意义且泄露隐私，仍清空（与 GLM/MiMo 一致）。
+  - **模型上限**：DeepSeek-V4 上下文窗口 1M、单次输出能力充裕（官方未公布精确输出上限，第三方实测 flash 可达 384K），`MODEL_MAX_TOKENS` 钳制值取保守的 128K（与 GLM 一致），确保偶发超大 `max_tokens` 不被上游拒收；旧模型名 `deepseek-chat` / `deepseek-reasoner` 已于 2026/07/24 弃用，仅使用 V4 新名。
+
+### Changed
+
+- **`package.json` 同步**：`files` 数组补入 `cc-ds-bridge`（避免重蹈 [2.5.1] mimo 漏打包导致安装后 `Cannot find module` 的覆辙）；`version` bump 至 2.6.0；`description` / `keywords` 补上 DeepSeek。
+- **CLI 帮助文案修正**：`bin/cc-bridge.js` 的 help 由静态的「only 'glm' is implemented so far」（自 [2.4.0] mimo 起即已过时）改为动态列举已实现上游（`listUpstreams().filter(isImplemented)`），新增导入 `isImplemented`。
+- **顶层 README upstreams 清单补全**：中英文 README 的「可用上游」表此前遗漏了 `mimo`（[2.4.0] 已实现），本次随 `ds` 一并补入 `mimo` + `ds`；「当前已实现」说明与 Files 表同步更新。
+
 ## [2.5.2] - 2026-07-30
 
 ### Fixed

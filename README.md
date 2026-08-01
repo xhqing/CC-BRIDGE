@@ -24,8 +24,9 @@ model, CC-BRIDGE **unlocks `/effort xhigh`** for non-first-party providers; it
 also supports **multiple API keys with automatic failover** and can **force a
 model to always run at `max` thinking effort**.
 
-> **Currently implemented:** `glm` (z.ai GLM-5.2). `kimi` / `qwen` are reserved
-> placeholders — see [Adding a new upstream](#adding-a-new-upstream).
+> **Currently implemented:** `glm` (z.ai GLM-5.2), `ds` (DeepSeek-V4), `mimo`
+> (Xiaomi MiMo). `kimi` / `qwen` are reserved placeholders — see
+> [Adding a new upstream](#adding-a-new-upstream).
 
 Install it once and start it from **any directory** with a single command:
 `cc-bridge`.
@@ -35,6 +36,8 @@ Install it once and start it from **any directory** with a single command:
 | upstream | status | adapter | target model |
 |----------|--------|---------|--------------|
 | `glm` | ✅ implemented | [cc-glm-bridge/](cc-glm-bridge/) | GLM-5.2 on z.ai |
+| `ds` | ✅ implemented | [cc-ds-bridge/](cc-ds-bridge/) | DeepSeek-V4 (pro / flash) |
+| `mimo` | ✅ implemented | [cc-mimo-bridge/](cc-mimo-bridge/) | MiMo-V2.5-Pro (Xiaomi) |
 | `kimi` | 🚧 reserved | [cc-kimi-bridge/](cc-kimi-bridge/) | — |
 | `qwen` | 🚧 reserved | [cc-qwen-bridge/](cc-qwen-bridge/) | — |
 
@@ -271,9 +274,11 @@ etc.
 | `core/daemon.js`         | background process management (per-upstream pid + log) |
 | `core/claude.js`         | start bridge + launch `claude` through it          |
 | `core/util.js`           | port cleanup / health probe / readiness wait       |
-| `cc-glm-bridge/adapter.js`  | GLM (z.ai GLM-5.2) adapter — body adaptation, force-max, model caps |
+| `cc-glm-bridge/adapter.js`  | GLM (z.ai GLM-5.2) adapter — body adaptation, per-model thinking, model caps |
+| `cc-ds-bridge/adapter.js`   | DeepSeek (DeepSeek-V4) adapter — body adaptation, per-model thinking |
+| `cc-mimo-bridge/adapter.js` | MiMo (Xiaomi MiMo-V2.5-Pro) adapter — body adaptation, per-model thinking switch |
 | `cc-kimi-bridge/`, `cc-qwen-bridge/` | reserved placeholders (adapter + README)    |
-| `cc-<name>-bridge/<name>.env.example` | per-upstream config template (GLM filled; Kimi/Qwen reserved) |
+| `cc-<name>-bridge/<name>.env.example` | per-upstream config template (GLM / DeepSeek / MiMo filled; Kimi/Qwen reserved) |
 | `~/.cc-bridge/<upstream>.env` | real config (yours, gitignored, never packaged) |
 
 ## Notes / caveats
