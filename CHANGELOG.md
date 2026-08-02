@@ -2,6 +2,16 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Added
+
+- **按模型 token 统计（`cc-bridge stats <upstream>`）**：新增 CLI 命令与统计落盘，解决「缓存命中信息只有逐请求日志、无法看累计」的问题——此前每请求虽有 `cache(anthropic/openai)` 日志，但要看总量 / 命中率需自己 grep 日志手工算。
+  - **采集（`core/server.js`）**：从上游响应的 `usage` 提取四个指标（输入 token、输出 token、缓存命中 token、缓存创建 token），按 **target 模型 ID** 分别累计；口径与既有 `formatCacheUsage` 一致（Anthropic 风格 `read+created+input` ≈ 总输入，OpenAI 风格 `prompt_tokens` 已含 cached），保证命中率 = 命中 / 总输入在单请求与汇总间一致。流式从 `message_start`、非流式从响应体取 usage；usage 结构无法识别时只计请求数、不计入 token，避免污染命中率口径。
+  - **持久化**：内存累计 + 每 30s 节流写盘到 `~/.cc-bridge/stats-<upstream>.json`（随 config 目录，兼容 `$CC_BRIDGE_CONFIG` / `--config` 覆盖），SIGINT/SIGTERM 退出前强制写一次补上尾部数据——daemon 停掉后 `stats` 命令仍能读到最近快照。
+  - **展示（新模块 `core/stats.js`）**：`cc-bridge stats <upstream>` 读快照排版输出，按模型分行 + 合计行（reqs / input / cache-hit / hit% / output），附统计时间窗口与文件路径；只读不依赖 daemon 运行。
+  - **配套**：`core/config.js` 新增 `statsPathFor`（server 写盘与 CLI 读盘共用同一路径解析）；`bin/cc-bridge.js` 注册 `stats` 命令并更新 HELP；中英文 README 命令列表同步。
+
 ## [2.6.0] - 2026-08-01
 
 ### Added

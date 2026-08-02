@@ -117,6 +117,7 @@ cc-bridge claude [args]   # 启动桥接 + 启动指向它的 claude
 cc-bridge stop            # 停止后台服务
 cc-bridge restart         # 重启后台服务（stop + start）
 cc-bridge status          # 查看运行状态
+cc-bridge stats           # 查看按模型统计（token / 缓存命中）
 cc-bridge logs            # 查看桥接日志（Ctrl-C 退出）
 cc-bridge health          # 探测 /health
 cc-bridge help            # 完整帮助

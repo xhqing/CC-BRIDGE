@@ -18,7 +18,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { resolvePairs } = require('./config');
+const { resolvePairs, statsPathFor } = require('./config');
 const classifier = require('./classifier');
 
 // --- 同 KEY 瞬态重试 --------------------------------------------------------
@@ -89,11 +89,76 @@ function formatCacheUsage(usage) {
   return `cache: 上游 usage 无缓存字段（keys: ${keys || '空'}）`;
 }
 
+// 统计快照落盘节流间隔（毫秒）：内存累计是实时的，落盘每 30s 一次即可，
+// 进程退出时（SIGINT/SIGTERM）会强制写一次补上尾部数据。
+const STATS_FLUSH_MS = 30 * 1000;
+
 // Create and start the bridge server from an already-loaded config + adapter.
 function startServer(cfg, adapter) {
   const PORT = cfg.PORT;
   const KEYS = cfg.KEYS || [];
   const VERBOSE = cfg.VERBOSE;
+
+  // --- 按模型 token 统计（跨请求累计，`cc-bridge stats <upstream>` 读取） ----------
+  // 每个 target 模型一条：请求数 + 输入 / 输出 / 缓存命中 / 缓存创建 token 合计。
+  // 输入口径与 formatCacheUsage 一致（Anthropic 风格三者相加 ≈ 总输入，OpenAI 风格
+  // prompt_tokens 已含 cached）——按两种风格二选一分支累计，保证命中率 = 命中 / 总输入
+  // 的口径在单请求与跨请求汇总之间一致。
+  // 持久化：内存累计 + 节流写盘到 ~/.cc-bridge/stats-<upstream>.json（随 config 目录，
+  // 兼容 $CC_BRIDGE_CONFIG 覆盖），daemon 停掉后 CLI 仍能读到最近快照。
+  const STATS_FILE = statsPathFor(cfg.upstream, cfg.configPath);
+  const stats = {
+    upstream: cfg.upstream,
+    startedAt: new Date().toISOString(),  // 本次进程的统计起点（重启即重置）
+    updatedAt: null,
+    models: {},
+  };
+  let statsDirty = false;
+  let lastStatsFlush = 0;
+
+  // 把一次上游响应的 usage 累计进 stats.models[model]。usage 结构未知时只记请求数。
+  function recordUsage(model, usage) {
+    if (!model || !usage || typeof usage !== 'object') return;
+    const s = (stats.models[model] ||= {
+      requests: 0, inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheCreatedTokens: 0,
+    });
+    s.requests++;
+    if (usage.cache_read_input_tokens != null || usage.cache_creation_input_tokens != null || usage.input_tokens != null) {
+      // Anthropic 风格：input_tokens 不含缓存部分，总输入 = input + read + created。
+      const read = usage.cache_read_input_tokens || 0;
+      const created = usage.cache_creation_input_tokens || 0;
+      s.inputTokens += read + created + (usage.input_tokens || 0);
+      s.cacheHitTokens += read;
+      s.cacheCreatedTokens += created;
+      s.outputTokens += usage.output_tokens || 0;
+    } else if (usage.prompt_tokens != null || (usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens != null)) {
+      // OpenAI 风格：prompt_tokens 已含 cached，命中 = cached。
+      const cached = (usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens) || 0;
+      s.inputTokens += usage.prompt_tokens || 0;
+      s.cacheHitTokens += cached;
+      s.outputTokens += usage.completion_tokens || 0;
+    } else {
+      // usage 存在但两种风格都不认：只记请求数与可能的输出，不污染输入 / 命中口径。
+      s.outputTokens += usage.output_tokens || usage.completion_tokens || 0;
+    }
+    stats.updatedAt = new Date().toISOString();
+    statsDirty = true;
+    maybeFlushStats();
+  }
+
+  // 节流落盘：距上次写盘超过 STATS_FLUSH_MS 才写；force 无视节流（进程退出前用）。
+  function maybeFlushStats(force) {
+    if (!statsDirty) return;
+    const now = Date.now();
+    if (!force && now - lastStatsFlush < STATS_FLUSH_MS) return;
+    lastStatsFlush = now;
+    try {
+      fs.writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2));
+      statsDirty = false;
+    } catch (e) {
+      log(`  stats flush failed: ${e.message}`);
+    }
+  }
 
   if (!cfg.API_BASE) {
     console.error(`[bridge] API_BASE not set for upstream '${adapter.name}'`); process.exit(1);
@@ -190,6 +255,9 @@ function startServer(cfg, adapter) {
       let obj = null; // parsed Anthropic request body (if any)
       const urlPath = clientReq.url.split('?')[0];
       const isMessages = clientReq.method === 'POST' && urlPath.startsWith('/v1/messages') && !urlPath.startsWith('/v1/messages/count_tokens');
+      // 本次请求的真实 target 模型（spoof 改写后 / 直传），提升到回调级供
+      // handleUpstreamResponse 使用（按模型统计需要它在响应处理时可见）。
+      let currentTarget = null;
 
       // Only rewrite the model on /v1/messages POSTs with a JSON body.
       if (clientReq.method === 'POST' && urlPath.startsWith('/v1/messages') && body.length) {
@@ -214,7 +282,7 @@ function startServer(cfg, adapter) {
           // 多对路由：在 pairs 里查 obj.model。命中某对的 spoof → 改写为该对 target；
           // 命中某对的 target → 原样直传；都不命中 → 400（绝不静默改写到默认对）。
           // currentTarget 记下本次真实 target，供 adapter 适配与 dump 命名使用。
-          let currentTarget = pairs[0] ? pairs[0].target : null;
+          currentTarget = pairs[0] ? pairs[0].target : null;
           if (obj.model) {
             const spoofHit = pairs.find((p) => p.spoof === obj.model);
             if (spoofHit) {
@@ -331,9 +399,12 @@ function startServer(cfg, adapter) {
               } else if (line.startsWith('data:') && pendingEvent.includes('message_start')) {
                 // 缓存命中观测：从 message_start 的 message.usage 提取缓存命中数。
                 // 不改写内容，记日志后原样转发（usage 透传给客户端，这里只是旁路观测）。
+                // 同一份 usage 同时累计进按模型统计（recordUsage），供 cc-bridge stats 读取。
                 try {
                   const data = JSON.parse(line.slice(5).trim());
-                  const cu = formatCacheUsage(data.message && data.message.usage);
+                  const u = data.message && data.message.usage;
+                  recordUsage(currentTarget, u);
+                  const cu = formatCacheUsage(u);
                   if (cu) log('  ' + cu);
                 } catch {}
                 clientRes.write(line + '\n');
@@ -360,6 +431,7 @@ function startServer(cfg, adapter) {
               const respBody = JSON.parse(raw);
               respBody.modelUsage = mu;
               if (respBody.total_cost_usd === undefined) respBody.total_cost_usd = 0;
+              recordUsage(currentTarget, respBody.usage);
               const cu = formatCacheUsage(respBody.usage);
               if (cu) log('  ' + cu);
               const modified = JSON.stringify(respBody);
@@ -537,7 +609,11 @@ function startServer(cfg, adapter) {
   });
 
   for (const sig of ['SIGINT', 'SIGTERM']) {
-    process.on(sig, () => { console.log(`\n[bridge] ${sig} received, shutting down`); process.exit(0); });
+    process.on(sig, () => {
+      maybeFlushStats(true);  // 退出前强制落盘，补上最后一段统计
+      console.log(`\n[bridge] ${sig} received, shutting down`);
+      process.exit(0);
+    });
   }
 
   return server;

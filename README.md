@@ -166,6 +166,7 @@ cc-bridge claude [args]   # start bridge + launch claude pointed at it
 cc-bridge stop            # stop the background service
 cc-bridge restart         # restart the background service (stop + start)
 cc-bridge status          # show running status
+cc-bridge stats           # show per-model token / cache-hit stats
 cc-bridge logs            # tail the bridge log (Ctrl-C to exit)
 cc-bridge health          # probe /health
 cc-bridge help            # full help

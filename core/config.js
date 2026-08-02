@@ -18,6 +18,12 @@ const configPathFor = (upstream) => path.join(DIR, `${upstream}.env`);
 const pidPathFor = (upstream) => path.join(DIR, `${upstream}.pid`);
 const logPathFor = (upstream) => path.join(DIR, `${upstream}.log`);
 
+// 按模型 token 统计文件路径：与 config / log / pid 同处（~/.cc-bridge/ 下按上游区分）。
+// configPath 传入实际生效的配置文件路径（兼容 $CC_BRIDGE_CONFIG / --config 覆盖），
+// server 写盘与 `cc-bridge stats` 读盘都用它，保证两边一定读到同一个文件。
+const statsPathFor = (upstream, configPath) =>
+  path.join(path.dirname(configPath || configPathFor(upstream)), `stats-${upstream}.json`);
+
 // 每上游的配置模板：cc-<name>-bridge/<name>.env.example（随包发布，按上游区分）。上游未
 // 注册时返回 null。`cc-bridge <upstream> config` 首次生成配置时复制的就是它。
 const templatePath = (upstream) => {
@@ -322,7 +328,7 @@ function resolvePairs(cfg, adapter) {
 }
 
 module.exports = {
-  configDir, configPathFor, pidPathFor, logPathFor, templatePath,
+  configDir, configPathFor, pidPathFor, logPathFor, statsPathFor, templatePath,
   parseEnv, parseModelMap, parseModelThinking, resolvePairs, resolveConfigPath, loadConfig, validate,
   ensureConfig, importConfig, editConfig, showConfig, mask, ensureDir,
 };

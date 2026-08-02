@@ -7,6 +7,7 @@
 const { loadConfig, validate, editConfig, showConfig, importConfig, configPathFor } = require('../core/config');
 const { startServer } = require('../core/server');
 const { startDaemon, stopDaemon, restartDaemon, statusDaemon, tailLog } = require('../core/daemon');
+const { showStats } = require('../core/stats');
 const { runWithClaude } = require('../core/claude');
 const { probeHealth } = require('../core/util');
 const { DEFAULT_UPSTREAM, listUpstreams, isKnown, isImplemented, loadAdapter } = require('../core/adapter');
@@ -28,6 +29,7 @@ Commands:
   cc-bridge stop                  stop background service
   cc-bridge restart               restart background service (stop + start)
   cc-bridge status                show running status
+  cc-bridge stats                 show per-model token / cache-hit stats
   cc-bridge logs                  tail the bridge log (Ctrl-C to exit)
   cc-bridge health                probe /health
   cc-bridge config                edit config in $EDITOR
@@ -141,6 +143,13 @@ async function main() {
     case 'status':
       await statusDaemon(loadConfig({ upstream, configPath: cfgPath }));
       break;
+
+    case 'stats': {
+      // 读 server 落盘的 stats 快照（无需 daemon 在运行，也无需完整配置校验）。
+      const cfg = loadConfig({ upstream, configPath: cfgPath });
+      showStats(cfg);
+      break;
+    }
 
     case 'logs':
       tailLog(upstream);
