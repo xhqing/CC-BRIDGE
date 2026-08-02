@@ -355,14 +355,11 @@ function startServer(cfg, adapter) {
       function handleUpstreamResponse(upRes) {
         log(`  ← ${upRes.statusCode}  ${Date.now() - t0}ms  ct=${upRes.headers['content-type'] || '-'}  key=#${currentKey + 1}`);
 
-        // 如果配置了 contextWindow，注入 modelUsage 到响应，让 CLI 把正确的上下文
-        // 窗口传给 webview；否则直接 pipe（快速路径）。
+        // 如果配置了 contextWindow / maxOutputTokens，注入 modelUsage 到响应，
+        // 让 CLI 把正确的上下文窗口传给 webview；没配则 mu 为 null、不注入。
+        // 注意：统计（recordUsage）与注入解耦——即便不注入，仍要走下面的解析
+        // 路径提取 usage 累计（否则 cc-bridge stats 永远没有数据）。
         const mu = isMessages ? buildModelUsage() : null;
-        if (!mu) {
-          clientRes.writeHead(upRes.statusCode || 502, upRes.headers);
-          upRes.pipe(clientRes);
-          return;
-        }
 
         if (stream) {
           // Streaming: intercept SSE events, inject modelUsage into message_delta.
@@ -385,16 +382,19 @@ function startServer(cfg, adapter) {
                 pendingEvent = line;
                 clientRes.write(line + '\n');
               } else if (line.startsWith('data:') && pendingEvent.includes('message_delta')) {
-                // 注入 modelUsage 到 message_delta data。同时确保 total_cost_usd 存在
-                // （webview 只在 total_cost_usd 存在时才读 modelUsage；非官方上游可能省略它）。
-                try {
-                  const data = JSON.parse(line.slice(5).trim());
-                  data.modelUsage = mu;
-                  if (data.total_cost_usd === undefined) data.total_cost_usd = 0;
-                  clientRes.write('data: ' + JSON.stringify(data) + '\n');
-                } catch {
-                  clientRes.write(line + '\n');
+                // 注入 modelUsage 到 message_delta data（仅当 mu 非空；空则原样转发）。
+                // 同时确保 total_cost_usd 存在（webview 只在 total_cost_usd 存在时才读
+                // modelUsage；非官方上游可能省略它）。
+                let out = line;
+                if (mu) {
+                  try {
+                    const data = JSON.parse(line.slice(5).trim());
+                    data.modelUsage = mu;
+                    if (data.total_cost_usd === undefined) data.total_cost_usd = 0;
+                    out = 'data: ' + JSON.stringify(data);
+                  } catch { /* parse 失败原样转发 */ }
                 }
+                clientRes.write(out + '\n');
                 pendingEvent = '';
               } else if (line.startsWith('data:') && pendingEvent.includes('message_start')) {
                 // 缓存命中观测：从 message_start 的 message.usage 提取缓存命中数。
@@ -422,18 +422,21 @@ function startServer(cfg, adapter) {
           });
           upRes.on('error', () => { try { clientRes.destroy(); } catch {} });
         } else {
-          // Non-streaming: buffer JSON, inject modelUsage, send.
+          // Non-streaming: buffer JSON, record usage, inject modelUsage (when mu), send.
           const respChunks = [];
           upRes.on('data', (c) => respChunks.push(c));
           upRes.on('end', () => {
             const raw = Buffer.concat(respChunks).toString('utf-8');
             try {
               const respBody = JSON.parse(raw);
-              respBody.modelUsage = mu;
-              if (respBody.total_cost_usd === undefined) respBody.total_cost_usd = 0;
+              // 统计无条件：与是否注入 modelUsage 无关。
               recordUsage(currentTarget, respBody.usage);
               const cu = formatCacheUsage(respBody.usage);
               if (cu) log('  ' + cu);
+              if (mu) {
+                respBody.modelUsage = mu;
+                if (respBody.total_cost_usd === undefined) respBody.total_cost_usd = 0;
+              }
               const modified = JSON.stringify(respBody);
               const hdrs = { ...upRes.headers, 'content-length': String(Buffer.byteLength(modified)) };
               delete hdrs['transfer-encoding'];

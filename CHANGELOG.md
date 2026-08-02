@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Fixed
+
+- **修复 `cc-bridge stats` 永远无数据（stats 不落盘）**：`core/server.js` 把 usage 统计（`recordUsage`）错误地放在「modelUsage 注入」分支内部——`buildModelUsage()` 在未配置 `CONTEXT_WINDOW` / `MAX_OUTPUT_TOKENS` 时返回 `null`，响应走直接 pipe 的提前返回，统计代码不可达，导致所有上游（glm / ds / mimo，均未配这两个参数）的 stats 快照从未写盘、缓存观测日志也从未输出（2.7.0 引入）。本次将统计与注入解耦：无论 `mu` 是否为 `null`，流式 / 非流式响应都走解析路径累计 usage（流式从 `message_start`、非流式从响应体）；modelUsage 注入保持仅在 `mu` 非空时进行，行为不变。
+
 ## [2.7.0] - 2026-08-02
 
 ### Added
