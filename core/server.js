@@ -117,11 +117,28 @@ function startServer(cfg, adapter) {
   let lastStatsFlush = 0;
 
   // 把一次上游响应的 usage 累计进 stats.models[model]。usage 结构未知时只记请求数。
-  function recordUsage(model, usage) {
+  // partial=true：流式末尾 message_delta.usage——Anthropic 规范里它只含输出侧统计
+  // （output_tokens，部分上游还带 cache_creation_input_tokens），只补充累计、
+  // 不重复计请求数（同一请求的请求数已在 message_start 计过）。
+  function recordUsage(model, usage, partial) {
     if (!model || !usage || typeof usage !== 'object') return;
     const s = (stats.models[model] ||= {
       requests: 0, inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheCreatedTokens: 0,
     });
+    if (partial) {
+      // message_start 的 usage 里 output_tokens 恒为 0（规范如此），真实输出数
+      // 只在流末尾的 delta 返回——必须在这里补累计，否则 stats 的 output 恒为 0
+      // （DeepSeek 兼容端点即如此；z.ai 不规范、反而在 message_start 就返回）。
+      // 缓存创建数部分上游也在 delta 报（start 为 0）——实测 glm / ds 的
+      // message_start 均无 creation，一并累计不会重复；若未来某上游 start / delta
+      // 都报 creation，此处会重复累计，需注意。
+      s.outputTokens += usage.output_tokens || 0;
+      s.cacheCreatedTokens += usage.cache_creation_input_tokens || 0;
+      stats.updatedAt = new Date().toISOString();
+      statsDirty = true;
+      maybeFlushStats();
+      return;
+    }
     s.requests++;
     if (usage.cache_read_input_tokens != null || usage.cache_creation_input_tokens != null || usage.input_tokens != null) {
       // Anthropic 风格：input_tokens 不含缓存部分，总输入 = input + read + created。
@@ -382,18 +399,25 @@ function startServer(cfg, adapter) {
                 pendingEvent = line;
                 clientRes.write(line + '\n');
               } else if (line.startsWith('data:') && pendingEvent.includes('message_delta')) {
+                // message_delta 的 usage 是输出侧统计（output_tokens，部分上游还带
+                // cache_creation_input_tokens）：Anthropic 规范里 message_start 的
+                // usage 只含输入侧、output_tokens 恒为 0——真实输出数在流末尾的
+                // delta 才返回，必须在这里补累计，否则 cc-bridge stats 的 output
+                // 恒为 0（DeepSeek 兼容端点即如此；z.ai 不规范、反而在 start 就返回）。
+                // 统计与注入解耦：无论 mu 是否为空都解析提取 usage 累计。
                 // 注入 modelUsage 到 message_delta data（仅当 mu 非空；空则原样转发）。
                 // 同时确保 total_cost_usd 存在（webview 只在 total_cost_usd 存在时才读
                 // modelUsage；非官方上游可能省略它）。
                 let out = line;
-                if (mu) {
-                  try {
-                    const data = JSON.parse(line.slice(5).trim());
+                try {
+                  const data = JSON.parse(line.slice(5).trim());
+                  recordUsage(currentTarget, data.usage, true);
+                  if (mu) {
                     data.modelUsage = mu;
                     if (data.total_cost_usd === undefined) data.total_cost_usd = 0;
                     out = 'data: ' + JSON.stringify(data);
-                  } catch { /* parse 失败原样转发 */ }
-                }
+                  }
+                } catch { /* parse 失败原样转发 */ }
                 clientRes.write(out + '\n');
                 pendingEvent = '';
               } else if (line.startsWith('data:') && pendingEvent.includes('message_start')) {

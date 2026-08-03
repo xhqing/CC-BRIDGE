@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Fixed
+
+- **修复 `cc-bridge stats` 输出 token 恒为 0（流式请求）**：流式响应此前只从 `message_start` 事件的 `message.usage` 提取统计，而 Anthropic 规范里该 usage 只含输入侧统计（`input_tokens` / 缓存读写），`output_tokens` 恒为 0——真实输出数在流末尾 `message_delta` 事件的 `usage` 里才返回。DeepSeek 兼容端点严格按规范返回，故 `cc-bridge ds stats` 的 output 列恒为 0（glm 不受影响，因 z.ai 兼容实现在 `message_start` 就带出了 output_tokens）。本次在 `message_delta` 分支补提取 usage：`recordUsage` 新增 partial 模式（只补累计输出侧 token、不重复计请求数），无论是否注入 modelUsage 都解析累计（沿用 [2.7.1] 统计与注入解耦的原则）；`cache_creation_input_tokens` 一并补累计（实测 glm / ds 的 `message_start` 均无 creation，不会重复计数）。
+
 ## [2.7.1] - 2026-08-03
 
 ### Fixed
