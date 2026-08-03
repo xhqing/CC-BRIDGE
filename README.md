@@ -9,7 +9,6 @@
 <div align="center">
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![GitHub stars](https://img.shields.io/github/stars/xhqing/CC-BRIDGE?style=social)
 ![GitHub last commit](https://img.shields.io/github/last-commit/xhqing/CC-BRIDGE)
 ![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-19C37D)
 ![Type: Project](https://img.shields.io/badge/Type-Project-lightgrey)
