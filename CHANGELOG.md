@@ -2,6 +2,14 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.7.7] - 2026-08-04
+
+### Fixed
+
+- **修复 DeepSeek 流式响应「卡很久然后突然闪出一大段」**：ds adapter 的流式路径此前把上游 OpenAI SSE 响应**全部缓冲**、等 DeepSeek 完整生成（含长思考 + 长正文）后才一次性转换为 Anthropic SSE 返回——Claude Code 看不到逐字流式，只能等全部结束后突然闪现整段内容。
+  - **新增实时流式转换器（`core/anthropic-openai-converter.js`）**：新增 `streamOpenAIToAnthropic()`——逐 chunk 边收边转，thinking / text 内容到达即实时转为 Anthropic 的 `content_block` 事件输出（思考与正文逐字流式显示）；工具调用（`tool_calls`）因 OpenAI 流式按 index 增量分段传输、需收齐才能拼出完整 input，统一在流末尾批量输出（工具调用通常不长，延迟可接受）。
+  - **adapter 接入（`cc-ds-bridge/adapter.js`）**：`makeUpstreamCall` 的流式分支改用 `streamOpenAIToAnthropic`，不再缓冲整流；原有非流式路径与 `convertStreamToAnthropicEvents`（保留，供一次性场景）不变。思考内容原本已能显示（2.7.4 的 thinking 块回传），本次仅修复传输节奏。
+
 ## [2.7.6] - 2026-08-04
 
 ### Fixed

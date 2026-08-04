@@ -560,6 +560,185 @@ function convertStreamToAnthropicEvents(openaiSseText, requestModel) {
   return events.join('\n') + '\n';
 }
 
+/**
+ * 流式转换：OpenAI SSE 流 → Anthropic SSE 流（逐 chunk 实时转发）。
+ *
+ * 与 convertStreamToAnthropicEvents（缓冲全部 SSE 后一次性转换）不同，本函数
+ * 边收边转：thinking / text 内容到达即实时转为 Anthropic 的 content_block 事件
+ * 输出，Claude Code 能逐字看到思考与正文流式出现，而非等上游全部生成完才一次性
+ * 闪出。工具调用（tool_calls）因 OpenAI 流式按 index 增量分段传输、需收齐后才能
+ * 拼出完整 input，统一在流末尾批量输出（工具调用通常不长，延迟可接受）。
+ *
+ * @param {Readable} openaiStream - DeepSeek OpenAI 端点的 SSE 流（upRes）
+ * @param {string} requestModel - 请求中的 model
+ * @returns {Readable} Anthropic SSE 文本流
+ */
+function streamOpenAIToAnthropic(openaiStream, requestModel) {
+  const { Readable } = require('stream');
+  const out = new Readable({ read() {} });
+
+  let sseBuf = '';          // 跨 chunk 的 SSE 行缓冲
+  let started = false;      // message_start 是否已发
+  let openBlockType = null; // 当前打开的 block 类型：'thinking' | 'text' | null
+  let openBlockIndex = -1;  // 当前打开 block 的 index（-1 = 无）
+  let blockCount = 0;       // 已打开的 content_block 总数（下一个 index）
+  let finishReason = null;  // OpenAI finish_reason
+  let usage = null;         // 流末尾 usage chunk（include_usage）
+  const toolCalls = {};     // OpenAI tool_call index → { id, name, args }
+  let done = false;         // finish() 只执行一次
+
+  const ev = (type, data) => `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
+
+  const closeBlock = () => {
+    if (openBlockIndex < 0) return '';
+    const s = ev('content_block_stop', { type: 'content_block_stop', index: openBlockIndex });
+    openBlockType = null;
+    openBlockIndex = -1;
+    return s;
+  };
+
+  // 打开指定类型的 block（同类型复用当前 block；切换类型先关闭旧 block）。
+  const startBlock = (type, contentBlock) => {
+    if (openBlockType === type) return '';
+    let s = closeBlock();
+    const i = blockCount++;
+    openBlockType = type;
+    openBlockIndex = i;
+    s += ev('content_block_start', {
+      type: 'content_block_start',
+      index: i,
+      content_block: contentBlock,
+    });
+    return s;
+  };
+
+  // 流收尾：关闭当前 block → 批量输出 tool_use blocks → message_delta → message_stop。
+  const finish = () => {
+    if (done) return '';
+    done = true;
+    let s = closeBlock();
+    const idxs = Object.keys(toolCalls).sort((a, b) => Number(a) - Number(b));
+    for (const k of idxs) {
+      const tc = toolCalls[k];
+      const i = blockCount++;
+      s += ev('content_block_start', {
+        type: 'content_block_start',
+        index: i,
+        content_block: { type: 'tool_use', id: tc.id, name: tc.name, input: '' },
+      });
+      s += ev('content_block_delta', {
+        type: 'content_block_delta',
+        index: i,
+        delta: { type: 'input_json_delta', partial_json: tc.args },
+      });
+      s += ev('content_block_stop', { type: 'content_block_stop', index: i });
+    }
+    s += ev('message_delta', {
+      type: 'message_delta',
+      delta: { stop_reason: mapFinishReason(finishReason) },
+      usage: { output_tokens: (usage && usage.completion_tokens) || 0 },
+    });
+    s += ev('message_stop', { type: 'message_stop' });
+    return s;
+  };
+
+  // 处理一行 "data: {...}"，返回要输出的 Anthropic SSE 文本（可能为空串）。
+  function processData(data) {
+    if (data === '[DONE]') return '';
+    let chunk;
+    try { chunk = JSON.parse(data); } catch { return ''; }
+
+    // 流末尾的 usage-only chunk（stream_options.include_usage=true 时，无 choices）。
+    if (chunk.usage && (!chunk.choices || !chunk.choices.length)) {
+      usage = chunk.usage;
+      return '';
+    }
+
+    const choice = (chunk.choices && chunk.choices[0]) || {};
+    const delta = choice.delta || {};
+    let s = '';
+
+    if (!started) {
+      started = true;
+      s += ev('message_start', {
+        type: 'message_start',
+        message: {
+          id: 'msg_openai_bridge_stream',
+          type: 'message',
+          role: delta.role || 'assistant',
+          model: requestModel || 'unknown',
+          content: [],
+          usage: { input_tokens: 0, output_tokens: 0 },
+        },
+      });
+    }
+
+    // thinking：实时转为 thinking block + thinking_delta
+    if (delta.reasoning_content) {
+      s += startBlock('thinking', { type: 'thinking', thinking: '' });
+      s += ev('content_block_delta', {
+        type: 'content_block_delta',
+        index: openBlockIndex,
+        delta: { type: 'thinking_delta', thinking: delta.reasoning_content },
+      });
+    }
+
+    // text：实时转为 text block + text_delta
+    if (delta.content) {
+      s += startBlock('text', { type: 'text', text: '' });
+      s += ev('content_block_delta', {
+        type: 'content_block_delta',
+        index: openBlockIndex,
+        delta: { type: 'text_delta', text: delta.content },
+      });
+    }
+
+    // tool_calls：增量累积，流末尾统一输出（见 finish()）
+    if (Array.isArray(delta.tool_calls)) {
+      for (const tc of delta.tool_calls) {
+        const idx = tc.index != null ? tc.index : 0;
+        if (!toolCalls[idx]) toolCalls[idx] = { id: '', name: '', args: '' };
+        if (tc.id) toolCalls[idx].id += tc.id;
+        if (tc.function) {
+          if (tc.function.name) toolCalls[idx].name += tc.function.name;
+          if (tc.function.arguments) toolCalls[idx].args += tc.function.arguments;
+        }
+      }
+    }
+
+    if (choice.finish_reason) finishReason = choice.finish_reason;
+    return s;
+  }
+
+  openaiStream.on('data', (chunk) => {
+    sseBuf += chunk.toString('utf-8');
+    let nl;
+    while ((nl = sseBuf.indexOf('\n')) >= 0) {
+      const line = sseBuf.slice(0, nl).trim();
+      sseBuf = sseBuf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      const s = processData(data);
+      if (s) out.push(s);
+    }
+  });
+  openaiStream.on('end', () => {
+    // 处理缓冲区可能残留的最后一行（无换行结尾）
+    if (sseBuf.trim()) {
+      const line = sseBuf.trim();
+      if (line.startsWith('data:')) {
+        const s = processData(line.slice(5).trim());
+        if (s) out.push(s);
+      }
+    }
+    out.push(finish());
+    out.push(null);
+  });
+  openaiStream.on('error', (err) => { try { out.destroy(err); } catch {} });
+
+  return out;
+}
+
 // ─── 工具函数 ──────────────────────────────────────────────────────────────
 
 /**
@@ -581,5 +760,6 @@ module.exports = {
   convertRequestToOpenAI,
   convertResponseToAnthropic,
   convertStreamToAnthropicEvents,
+  streamOpenAIToAnthropic,
   stripCacheControl,
 };

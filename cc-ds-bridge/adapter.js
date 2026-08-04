@@ -14,7 +14,7 @@ const https = require('https');
 const {
   convertRequestToOpenAI,
   convertResponseToAnthropic,
-  convertStreamToAnthropicEvents,
+  streamOpenAIToAnthropic,
   stripCacheControl,
 } = require('../core/anthropic-openai-converter');
 
@@ -193,28 +193,18 @@ module.exports = {
         }
 
         if (stream) {
-          // 流式：缓冲所有 OpenAI SSE chunk，转为 Anthropic SSE 格式后一次性返回。
-          // 工具调用通常不长，延迟可接受；避免了逐 chunk 转换的复杂度。
-          const chunks = [];
-          upRes.on('data', (c) => chunks.push(c));
-          upRes.on('end', () => {
-            const openaiSse = Buffer.concat(chunks).toString('utf-8');
-            const anthropicSse = convertStreamToAnthropicEvents(openaiSse, anthropicBody.model);
-            const buf = Buffer.from(anthropicSse, 'utf-8');
-            const { Readable } = require('stream');
-            const fakeStream = new Readable({
-              read() {
-                this.push(buf);
-                this.push(null);
-              },
-            });
-            resolve({
-              status: 200,
-              headers: { 'content-type': 'text/event-stream' },
-              stream: fakeStream,
-            });
+          // 流式：逐 chunk 实时转换转发（thinking / text 实时输出，tool_calls 在
+          // 流末尾批量输出）。边收边转让 Claude Code 逐字看到思考与正文，而不是
+          // 等上游全部生成完再一次性返回（此前缓冲整流的做法会「卡很久然后突然
+          // 闪出一大段」）。
+          const anthropicStream = streamOpenAIToAnthropic(upRes, anthropicBody.model);
+          resolve({
+            status: 200,
+            headers: { 'content-type': 'text/event-stream' },
+            stream: anthropicStream,
           });
-          upRes.on('error', (err) => reject({ status, err }));
+          // upRes 的 error 由 streamOpenAIToAnthropic 内部转给 out 流（destroy）；
+          // 这里不再 reject——resolve 已发出，reject 无意义。
         } else {
           // 非流式：缓冲完整响应，转为 Anthropic 格式
           const chunks = [];
