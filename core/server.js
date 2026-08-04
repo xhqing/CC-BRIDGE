@@ -200,6 +200,9 @@ function startServer(cfg, adapter) {
   // 每个请求按 target 模型钉死思考等级（max/high/none），忽略客户端 effort。
   adapter.modelThinking = cfg.THINK_MAP || {};
   adapter.thinkingDefault = cfg.THINK_DEFAULT || adapter.defaultThinking;
+  // 注入 apiBase 供 adapter.makeUpstreamCall 使用（如 DeepSeek 需要从 apiBase
+  // 派生 OpenAI 端点地址）。
+  adapter.apiBase = cfg.API_BASE;
 
   const apiBase = cfg.API_BASE;
   const upstream = new URL(apiBase);
@@ -523,6 +526,72 @@ function startServer(cfg, adapter) {
 
       function send(keyIdx) {
         t0 = Date.now();
+        log(
+          `${clientReq.method} ${clientReq.url}  ` +
+          `model=${modelIn || '-'}${rewritten ? ' → ' + rewritten : ' (passthrough)'}  ` +
+          `effort=${effort || '-'}  stream=${stream}  key=#${keyIdx + 1}/${KEYS.length}`,
+        );
+
+        // adapter 接管路径：adapter 实现了 makeUpstreamCall 时，由 adapter 全权处理
+        // 请求格式转换、上游调用、响应格式转回（如 DeepSeek：Anthropic → OpenAI →
+        // Anthropic，绕开其 Anthropic 端点的并发 tool_use 限制）。
+        if (typeof adapter.makeUpstreamCall === 'function' && isMessages) {
+          adapter.makeUpstreamCall({
+            apiKey: KEYS[keyIdx],
+            anthropicBody: obj,
+            stream,
+            log,
+          }).then((adapterRes) => {
+            // 构造一个模拟的 http.IncomingMessage 给 handleUpstreamResponse
+            const { PassThrough } = require('stream');
+            const fakeRes = new PassThrough();
+            fakeRes.statusCode = adapterRes.status || 200;
+            fakeRes.headers = adapterRes.headers || {};
+            if (adapterRes.stream) {
+              // 流式：adapter 返回的 stream pipe 到 fakeRes
+              adapterRes.stream.pipe(fakeRes);
+            } else {
+              // 非流式：直接写入 body
+              fakeRes.end(adapterRes.body || Buffer.alloc(0));
+            }
+            handleUpstreamResponse(fakeRes);
+          }).catch((errInfo) => {
+            const status = (errInfo && errInfo.status) || 502;
+            const err = (errInfo && errInfo.err) || errInfo;
+            const canRetry = attemptInKey < UPSTREAM_RETRY_DELAYS.length;
+
+            if (isKeyError(status)) {
+              keyBlockedUntil[keyIdx] = Date.now() + KEY_BLOCK_SECONDS * 1000;
+              log(`  ← ${status}  key=#${keyIdx + 1} 认定失效 / 欠费，熔断 ${KEY_BLOCK_SECONDS}s 并切换`);
+              tried.add(keyIdx);
+              attemptInKey = 0;
+              currentKey = pickNextKey();
+              if (currentKey === -1) return finalError({ status });
+              send(currentKey);
+              return;
+            }
+            if (isTransient(err, status) && canRetry) {
+              const delay = UPSTREAM_RETRY_DELAYS[attemptInKey];
+              log(`  ← ${status} adapter 瞬态错误（${Date.now() - t0}ms），${delay}ms 后重试`);
+              attemptInKey++;
+              setTimeout(() => send(keyIdx), delay);
+              return;
+            }
+            if (isTransient(err, status)) {
+              log(`  ← ${status} adapter 同 KEY 重试用尽，切换下一个 KEY`);
+              tried.add(keyIdx);
+              attemptInKey = 0;
+              currentKey = pickNextKey();
+              if (currentKey === -1) return finalError({ status });
+              send(currentKey);
+              return;
+            }
+            finalError({ status, err });
+          });
+          return;
+        }
+
+        // 默认路径：直接透传 Anthropic 请求体到上游
         const opts = {
           hostname: upstream.hostname,
           port: upstream.port || 443,
@@ -530,11 +599,6 @@ function startServer(cfg, adapter) {
           method: clientReq.method,
           headers: buildHeaders(KEYS[keyIdx]),
         };
-        log(
-          `${clientReq.method} ${clientReq.url}  ` +
-          `model=${modelIn || '-'}${rewritten ? ' → ' + rewritten : ' (passthrough)'}  ` +
-          `effort=${effort || '-'}  stream=${stream}  key=#${keyIdx + 1}/${KEYS.length}`,
-        );
         activeUpReq = https.request(opts, (upRes) => {
           const status = upRes.statusCode || 502;
           const canRetry = attemptInKey < UPSTREAM_RETRY_DELAYS.length;
