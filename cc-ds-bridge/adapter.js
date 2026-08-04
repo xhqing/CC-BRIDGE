@@ -173,10 +173,22 @@ module.exports = {
       }, (upRes) => {
         const status = upRes.statusCode || 502;
 
-        // 上游错误：向上抛，让 server 的 failover 逻辑处理（重试 / 换 KEY / 终止）
+        // 上游错误：读完错误响应体再向上抛——DeepSeek 的 4xx 体里带具体原因
+        // （如 reasoning_content 未回传 / 模型不存在），丢失它会让排障变成盲猜。
         if (status >= 400) {
-          upRes.resume();
-          reject({ status, err: new Error(`DeepSeek OpenAI endpoint returned ${status}`) });
+          const errChunks = [];
+          upRes.on('data', (c) => errChunks.push(c));
+          upRes.on('end', () => {
+            const raw = Buffer.concat(errChunks).toString('utf-8');
+            let detail = '';
+            try { detail = (JSON.parse(raw).error || {}).message || ''; } catch { /* 非 JSON */ }
+            if (!detail) detail = raw.replace(/\s+/g, ' ').trim().slice(0, 300);
+            const suffix = detail ? `: ${detail}` : '';
+            reject({ status, err: new Error(`DeepSeek OpenAI endpoint returned ${status}${suffix}`) });
+          });
+          upRes.on('error', () => {
+            reject({ status, err: new Error(`DeepSeek OpenAI endpoint returned ${status}`) });
+          });
           return;
         }
 

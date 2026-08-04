@@ -11,6 +11,14 @@
  *   convertResponseToAnthropic(openaiBody, requestModel) → anthropicBody
  *   convertStreamToAnthropicEvents(openaiSseText, requestModel) → anthropicSseText
  *   stripCacheControl(node)                   递归剥离 cache_control
+ *
+ * 思考内容双向映射（DeepSeek-V4 thinking 模式的硬要求）：
+ *   响应方向：reasoning_content → Anthropic thinking block（CC 收到后会在后续请求回传）
+ *   请求方向：assistant 的 thinking block → reasoning_content 字段
+ *   DeepSeek 规则（实测）：请求以 tool 消息结尾（tool 结果续接）时，带 tool_calls 的
+ *   assistant 消息必须携带 reasoning_content，否则 400「The `reasoning_content` in the
+ *   thinking mode must be passed back to the API.」。缺失时用占位符兜底（兼容修复前
+ *   生成的无思考历史会话）。
  */
 
 // ─── 请求转换：Anthropic → OpenAI ─────────────────────────────────────────
@@ -48,6 +56,7 @@ function convertMessages(anthropicMessages) {
 
     if (msg.role === 'assistant') {
       const textParts = [];
+      const thinkingParts = [];
       const toolCalls = [];
 
       if (typeof msg.content === 'string') {
@@ -57,10 +66,11 @@ function convertMessages(anthropicMessages) {
           if (!block || typeof block !== 'object') continue;
           if (block.type === 'text' && block.text != null) {
             textParts.push(block.text);
-          } else if (block.type === 'thinking' && block.thinking != null) {
-            // DeepSeek-V4 thinking 通过 reasoning_effort 开启，不走 thinking block；
-            // 但为通用性保留转换（某些上游可能读取）。
-            textParts.push(block.thinking);
+          } else if (block.type === 'thinking' && block.thinking) {
+            // 思考内容 → reasoning_content 字段（DeepSeek thinking 模式要求原样回传；
+            // 并入正文文本会被视为普通输出，上游照样 400）。signature 是 Anthropic 专有，
+            // DeepSeek 不读，丢弃。
+            thinkingParts.push(block.thinking);
           } else if (block.type === 'tool_use') {
             toolCalls.push({
               id: block.id,
@@ -73,6 +83,7 @@ function convertMessages(anthropicMessages) {
               },
             });
           }
+          // redacted_thinking 无法还原文本，跳过（极端情况下由下方占位符兜底）
         }
       }
 
@@ -80,7 +91,14 @@ function convertMessages(anthropicMessages) {
       const text = textParts.join('');
       if (text) assistantMsg.content = text;
       else if (toolCalls.length) assistantMsg.content = null;
-      if (toolCalls.length) assistantMsg.tool_calls = toolCalls;
+      if (thinkingParts.length) assistantMsg.reasoning_content = thinkingParts.join('');
+      if (toolCalls.length) {
+        assistantMsg.tool_calls = toolCalls;
+        // 兜底：tool_calls 回合缺 reasoning_content 时补占位符——DeepSeek thinking 模式下，
+        // 「tool 结果续接」请求里该字段缺失会 400；占位符对 OpenAI 兼容端点无副作用
+        // （不认识的字段被忽略），主要兼容本修复落地前生成的无思考历史会话。
+        if (assistantMsg.reasoning_content == null) assistantMsg.reasoning_content = ' ';
+      }
       out.push(assistantMsg);
 
     } else if (msg.role === 'user') {
@@ -207,6 +225,15 @@ function convertRequestToOpenAI(anthropicBody) {
   // temperature（透传）
   if (anthropicBody.temperature != null) openaiBody.temperature = anthropicBody.temperature;
 
+  // 思考参数透传（adapter 已按模型钉死等级后写入 anthropicBody）：
+  //   reasoning_effort = max/high → 开思考并定级；none → 关思考
+  //   thinking.type = disabled   → 关思考（DeepSeek 两者都认，对称写入确保一致）
+  // 实测：deepseek-v4 默认开思考；不传这两个字段时思考也是开的。
+  if (anthropicBody.reasoning_effort != null) openaiBody.reasoning_effort = anthropicBody.reasoning_effort;
+  if (anthropicBody.thinking && anthropicBody.thinking.type === 'disabled') {
+    openaiBody.thinking = { type: 'disabled' };
+  }
+
   return { body: openaiBody };
 }
 
@@ -231,6 +258,12 @@ function convertResponseToAnthropic(openaiRes, requestModel) {
   const choice = (openaiRes.choices && openaiRes.choices[0]) || {};
   const msg = choice.message || {};
   const content = [];
+
+  // reasoning_content → thinking block（必须在 text 之前，Anthropic 规范要求 thinking 居首；
+  // CC 收到后会在后续请求回传，满足 DeepSeek thinking 模式的 reasoning_content 回传要求）
+  if (msg.reasoning_content) {
+    content.push({ type: 'thinking', thinking: msg.reasoning_content });
+  }
 
   // text content
   if (msg.content != null && msg.content !== '') {
@@ -294,6 +327,7 @@ function convertStreamToAnthropicEvents(openaiSseText, requestModel) {
   const lines = openaiSseText.split('\n');
   let role = 'assistant';
   let contentText = '';
+  let reasoningText = '';
   const toolCalls = {}; // index → { id, name, arguments }
   let finishReason = null;
 
@@ -316,6 +350,7 @@ function convertStreamToAnthropicEvents(openaiSseText, requestModel) {
     const delta = (chunk.choices && chunk.choices[0] && chunk.choices[0].delta) || {};
     if (delta.role) role = delta.role;
     if (delta.content) contentText += delta.content;
+    if (delta.reasoning_content) reasoningText += delta.reasoning_content;
 
     // tool_calls delta 累积
     if (Array.isArray(delta.tool_calls)) {
@@ -334,8 +369,9 @@ function convertStreamToAnthropicEvents(openaiSseText, requestModel) {
     if (fr) finishReason = fr;
   }
 
-  // 从累积数据构建 Anthropic 响应
+  // 从累积数据构建 Anthropic 响应（thinking 必须居首）
   const content = [];
+  if (reasoningText) content.push({ type: 'thinking', thinking: reasoningText });
   if (contentText) content.push({ type: 'text', text: contentText });
 
   const tcArray = Object.keys(toolCalls).sort().map((k) => toolCalls[k]);
@@ -383,7 +419,19 @@ function convertStreamToAnthropicEvents(openaiSseText, requestModel) {
     const block = content[i];
 
     events.push('event: content_block_start');
-    if (block.type === 'text') {
+    if (block.type === 'thinking') {
+      events.push(`data: ${JSON.stringify({
+        type: 'content_block_start',
+        index: i,
+        content_block: { type: 'thinking', thinking: '' },
+      })}`);
+      events.push('event: content_block_delta');
+      events.push(`data: ${JSON.stringify({
+        type: 'content_block_delta',
+        index: i,
+        delta: { type: 'thinking_delta', thinking: block.thinking },
+      })}`);
+    } else if (block.type === 'text') {
       events.push(`data: ${JSON.stringify({
         type: 'content_block_start',
         index: i,
