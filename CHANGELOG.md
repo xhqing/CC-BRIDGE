@@ -2,13 +2,17 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [2.7.3] - 2026-08-04
 
 ### Fixed
 
 - **修复 DeepSeek 并发 tool_use 返回 400**：DeepSeek 的 Anthropic 兼容端点（`/anthropic`）不支持同一 assistant 消息中包含多个 `tool_use` block（Claude Code 的并行工具调用场景），返回 `API Error: 400 due to tool use concurrency issues`。根因是 DeepSeek 的 Anthropic 兼容层实现缺陷——其 OpenAI 兼容端点（`/chat/completions`）完全支持并发 `tool_calls`。
   - **解决方案**：新增 `core/anthropic-openai-converter.js` 格式转换模块（Anthropic ↔ OpenAI 双向转换：请求体、非流式响应、流式 SSE），DeepSeek adapter 新增 `makeUpstreamCall()` 方法接管上游请求——把 Claude Code 的 Anthropic 请求转为 OpenAI 格式调 DeepSeek OpenAI 端点，再把响应转回 Anthropic 格式，对 Claude Code 完全透明。
   - **框架层扩展**：`core/server.js` 的 `send()` 新增 adapter 接管路径——检测到 adapter 实现 `makeUpstreamCall` 时，把请求控制权交给 adapter（adapter 自行构建 HTTPS 请求、处理上游响应、返回 Anthropic 格式结果），server 拿到结果后走 `handleUpstreamResponse`（注入 modelUsage / 统计 usage）；多 KEY 容灾（重试 / 换 KEY / 熔断）逻辑在 adapter reject 时同样生效。对其它上游（GLM / MiMo 等不实现 `makeUpstreamCall` 的 adapter）无任何影响——走原有透传路径。
+
+### Changed
+
+- **DeepSeek 配置模板与文档同步 OpenAI 端点**：`cc-ds-bridge/ds.env.example` 的 `API_BASE` 默认值从 `https://api.deepseek.com/anthropic` 改为 `https://api.deepseek.com`（基地址，adapter 自动走 OpenAI 端点），注释同步更新；`cc-ds-bridge/README.md` 端点描述改为 OpenAI 兼容端点、配置字段说明和 adapter 接口节补充 `makeUpstreamCall` 说明；中英文 README「按模型配思考等级」节标题与正文补上 DeepSeek（此前只提 GLM）。
 
 ## [2.7.2] - 2026-08-03
 

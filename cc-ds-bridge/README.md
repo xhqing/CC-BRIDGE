@@ -1,6 +1,6 @@
 # CC-DS-BRIDGE — Claude Code ↔ DeepSeek-V4 适配器
 
-CC-BRIDGE 框架的 DeepSeek 上游适配器，对接 [DeepSeek](https://api-docs.deepseek.com) 的 DeepSeek-V4 系列（`deepseek-v4-pro` / `deepseek-v4-flash`），经 DeepSeek 官方的 Anthropic 兼容端点（`https://api.deepseek.com/anthropic`）接入。
+CC-BRIDGE 框架的 DeepSeek 上游适配器，对接 [DeepSeek](https://api-docs.deepseek.com) 的 DeepSeek-V4 系列（`deepseek-v4-pro` / `deepseek-v4-flash`）。为绕开 DeepSeek Anthropic 兼容端点（`/anthropic`）不支持并发 `tool_use` 的限制，adapter 内部通过 OpenAI 兼容端点（`/chat/completions`）调用 DeepSeek，Anthropic ↔ OpenAI 格式转换自动完成，对 Claude Code 完全透明。
 
 ## 它做什么
 
@@ -36,8 +36,8 @@ CC-BRIDGE 框架的 DeepSeek 上游适配器，对接 [DeepSeek](https://api-doc
 
 配置文件：`~/.cc-bridge/ds.env`（模板见本目录 [`ds.env.example`](ds.env.example)）。
 
-主要字段：`API_BASE`（DeepSeek Anthropic 兼容接口地址）、`API_KEY`（逗号分隔多个 DeepSeek KEY，支持容灾）、`MODEL_MAP`（`spoof->target` 映射对，支持多对，默认 `claude-opus-4-8->deepseek-v4-pro`）、`MODEL_THINKING`（按 target 模型配思考等级 `max`/`high`/`none`，默认全 `max`）。
+主要字段：`API_BASE`（DeepSeek API 基地址，只填 `https://api.deepseek.com` 即可，adapter 自动走 OpenAI 端点）、`API_KEY`（逗号分隔多个 DeepSeek KEY，支持容灾）、`MODEL_MAP`（`spoof->target` 映射对，支持多对，默认 `claude-opus-4-8->deepseek-v4-pro`）、`MODEL_THINKING`（按 target 模型配思考等级 `max`/`high`/`none`，默认全 `max`）。
 
 ## adapter 接口
 
-本目录的 `adapter.js` 导出统一 adapter 接口：`name` / `displayName` / `defaultTarget` / `defaultSpoof` / `defaultThinking` / `modelMaxTokens` / `adaptRequestBody(obj, ctx)`。新增其它上游适配器时实现同一接口即可，框架层（[core/](../core/)）无需改动，详见 [core/adapter.js](../core/adapter.js)。
+本目录的 `adapter.js` 导出统一 adapter 接口：`name` / `displayName` / `defaultTarget` / `defaultSpoof` / `defaultThinking` / `modelMaxTokens` / `adaptRequestBody(obj, ctx)` / `makeUpstreamCall(ctx)`。其中 `makeUpstreamCall` 是 ds adapter 的特殊方法——接管上游请求，把 Anthropic 格式转为 OpenAI 格式调 DeepSeek 的 `/chat/completions`，再把响应转回 Anthropic 格式。框架层（[core/](../core/)）检测到该方法时自动把请求控制权交给 adapter；不实现该方法的上游走原有 Anthropic 透传路径，详见 [core/server.js](../core/server.js)。

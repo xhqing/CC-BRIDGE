@@ -231,17 +231,18 @@ works). They share one `API_BASE`. The bridge decides when to rotate per request
 - **Bounded retries.** Each request tries at most `keys × (1 + 2 retries)` calls,
   so failover always terminates.
 
-## Per-model thinking level (GLM)
+## Per-model thinking level (GLM / DeepSeek)
 
-Each GLM target model gets a pinned thinking level via `MODEL_THINKING` in
-`~/.cc-bridge/glm.env` (e.g. `MODEL_THINKING=glm-5.2->max,glm-4.6->none`).
-Levels are `max` / `high` / `none` (`none` = no thinking). On every request the
-adapter looks up the target model's level and writes it to three fields in
-concert — `thinking.type` (`enabled`/`disabled`), `reasoning_effort`, and
-`output_config.effort` — so the level holds regardless of the client's
-`/effort` tier. Models not listed fall back to `MODEL_THINKING_DEFAULT`
-(default `max`, set by `defaultThinking` in
-[cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js)).
+Each target model gets a pinned thinking level via `MODEL_THINKING` in the
+upstream's config (e.g. `MODEL_THINKING=glm-5.2->max,glm-4.6->none` in
+`~/.cc-bridge/glm.env`, or `MODEL_THINKING=deepseek-v4-flash->none` in
+`~/.cc-bridge/ds.env`). Levels are `max` / `high` / `none` (`none` = no
+thinking). On every request the adapter looks up the target model's level and
+writes it to three fields in concert — `thinking.type` (`enabled`/`disabled`),
+`reasoning_effort`, and `output_config.effort` — so the level holds regardless
+of the client's `/effort` tier. Models not listed fall back to
+`MODEL_THINKING_DEFAULT` (default `max`, set by `defaultThinking` in the
+adapter).
 
 ## Adding a new upstream
 

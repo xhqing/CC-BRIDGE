@@ -169,9 +169,9 @@ cc-bridge claude -- -p "hello"   # 也接受 "--" 分隔符
 - **瞬态错误不熔断 KEY。** `5xx` 或网络抖动是网关问题，不是 KEY 的错——不连累无辜 KEY。
 - **重试有界。** 每条请求最多尝试 `KEY 数 ×（1 + 2 次重试）` 次，容灾总会终止。
 
-## 按模型配思考等级（GLM）
+## 按模型配思考等级（GLM / DeepSeek）
 
-每个 GLM target 模型通过 `~/.cc-bridge/glm.env` 里的 `MODEL_THINKING` 钉死一个思考等级（如 `MODEL_THINKING=glm-5.2->max,glm-4.6->none`），取值 `max` / `high` / `none`（`none` = 不思考）。每条请求 adapter 按 target 模型查等级，对称写入三个字段——`thinking.type`（`enabled`/`disabled`）、`reasoning_effort`、`output_config.effort`——从而钉死等级、不受客户端 `/effort` 档位影响。未列出的模型走 `MODEL_THINKING_DEFAULT`（默认 `max`，由 [cc-glm-bridge/adapter.js](cc-glm-bridge/adapter.js) 的 `defaultThinking` 设定）。
+每个 target 模型通过上游配置里的 `MODEL_THINKING` 钉死一个思考等级（如 `~/.cc-bridge/glm.env` 里 `MODEL_THINKING=glm-5.2->max,glm-4.6->none`，或 `~/.cc-bridge/ds.env` 里 `MODEL_THINKING=deepseek-v4-flash->none`），取值 `max` / `high` / `none`（`none` = 不思考）。每条请求 adapter 按 target 模型查等级，对称写入三个字段——`thinking.type`（`enabled`/`disabled`）、`reasoning_effort`、`output_config.effort`——从而钉死等级、不受客户端 `/effort` 档位影响。未列出的模型走 `MODEL_THINKING_DEFAULT`（默认 `max`，由 adapter 的 `defaultThinking` 设定）。
 
 ## 添加新上游
 
