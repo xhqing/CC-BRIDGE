@@ -2,6 +2,14 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.7.9] - 2026-08-04
+
+### Fixed
+
+- **修复 OpenAI 转换流的 usage 统计口径（输入侧估算污染 / 缓存命中错位）**：OpenAI / DeepSeek 风格 usage 此前直接按 `prompt_tokens` 计入 `input_tokens`，与 server 侧「总输入 = read + created + input」的 Anthropic 口径不一致——缓存命中 token 会被重复计入输入，`cc-bridge ds stats` 的命中率被低估。
+  - **转换器（`core/anthropic-openai-converter.js`）**：新增 `openaiUsageToAnthropic()` 统一映射——`input_tokens` = miss（`prompt_tokens - prompt_cache_hit_tokens`，不含命中部分）、`cache_read_input_tokens` = hit（DeepSeek 缓存命中等价于 Anthropic 的 read）、`output_tokens` = `completion_tokens`；同时兼容 `prompt_tokens_details.cached_tokens`（OpenAI 规范口径）。非流式响应与流式末尾均改用该映射。
+  - **server（`core/server.js`）**：`recordUsage` 新增 `base` 快照参数——流式 `message_start` 记入前快照本请求输入侧统计，`message_delta` 收到真实 usage 时回退估算值、按「read + created + input」口径改记真实值（DS 等转换流的真实 usage 只在 delta 返回）；`message_delta` 分支同时补充缓存命中观测日志（与 `message_start` 旁路观测互补）。
+
 ## [2.7.8] - 2026-08-04
 
 ### Fixed
