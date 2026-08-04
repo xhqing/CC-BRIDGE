@@ -2,6 +2,14 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.7.4] - 2026-08-04
+
+### Fixed
+
+- **修复 DeepSeek thinking 模式 tool 结果续接请求 400（全量失败）**：DeepSeek-V4 thinking 模式的硬性要求——请求以 tool 消息结尾（tool 结果续接）时，带 `tool_calls` 的 assistant 消息必须携带 `reasoning_content`，否则返回 400 `The reasoning_content in the thinking mode must be passed back to the API`。2.7.3 引入的 OpenAI 转换链路在两个方向都丢了思考内容：响应侧 `reasoning_content` 未转成 Anthropic `thinking` 块（Claude Code 收不到就无法回传），请求侧 `thinking` 块被错误并入正文文本而非 `reasoning_content` 字段——Claude Code 会话天然以 tool_result 结尾，导致每发必 400。
+  - **转换器修复（`core/anthropic-openai-converter.js`）**：响应方向 `reasoning_content` → `thinking` 块（居首，流式发 `thinking_delta`）；请求方向 assistant `thinking` 块 → `reasoning_content` 字段；`tool_calls` 回合缺思考内容时补占位符兜底（修复前产生的旧会话无需新开即可用）；新增 `reasoning_effort` / `thinking.disabled` 透传——此前 `MODEL_THINKING` 配置在 OpenAI 路径静默失效，现在 max / none 真实到达上游。
+  - **错误透出修复（`cc-ds-bridge/adapter.js`）**：上游 4xx/5xx 时读取错误响应体并在报错中带出 DeepSeek 的具体 message，排障不再只有一句 "returned 400"。
+
 ## [2.7.3] - 2026-08-04
 
 ### Fixed
