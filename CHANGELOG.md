@@ -2,6 +2,14 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.8.0] - 2026-08-04
+
+### Changed
+
+- **DeepSeek 切回原生 Anthropic 直传端点（`/anthropic`）**：早期 `/anthropic` 端点对「同一 assistant 消息含多个 `tool_use`（并发工具调用）」返回 400，曾改走 OpenAI 兼容端点（`/chat/completions` + `makeUpstreamCall` 转换层，见 2.7.6~2.7.9）。2026-08-04 实测该 400 已修复（历史含双 `tool_use`、模型并行输出两个方向均 200），切回直传路径。
+  - **收益**：DeepSeek 隐式 Context Caching 按「完整前缀单元」匹配，直传时 system / tools / 会话历史前缀稳定，缓存命中率从转换流的 ~65% 恢复到直传的 ~98%（实测）；并发 `tool_use` 同步恢复。
+  - **变更**：`cc-ds-bridge/adapter.js` 移除 `makeUpstreamCall` 与 `anthropic-openai-converter` 依赖，恢复本地 `stripCacheControl`；`API_BASE` 恢复为 `https://api.deepseek.com/anthropic`（模板 `ds.env.example` 与 `cc-ds-bridge/README.md` 同步）；`core/anthropic-openai-converter.js` 与框架层 `makeUpstreamCall` 接管路径保留，供其它上游复用。
+
 ## [2.7.9] - 2026-08-04
 
 ### Fixed

@@ -4,20 +4,17 @@
 // 框架层（core/server.js）按统一 adapter 接口调用本文件。新增其它上游时，
 // 在各自的 cc-<name>-bridge/adapter.js 实现同一接口即可，无需改动 core/。
 //
-// DeepSeek 的 Anthropic 兼容端点（/anthropic）不支持并发 tool_use（多个
-// tool_use block 出现在同一 assistant 消息中会返回 400），但 OpenAI 兼容端点
-// （/chat/completions）支持并发 tool_calls。因此本 adapter 实现
-// makeUpstreamCall()：把 Anthropic 请求体转为 OpenAI 格式，调 DeepSeek 的
-// OpenAI 端点，再把响应转回 Anthropic 格式——对 Claude Code 完全透明。
-
-const https = require('https');
-const {
-  convertRequestToOpenAI,
-  convertResponseToAnthropic,
-  streamOpenAIToAnthropic,
-  estimateInputTokens,
-  stripCacheControl,
-} = require('../core/anthropic-openai-converter');
+// DeepSeek 提供官方 Anthropic 兼容端点（base_url 为 https://api.deepseek.com/anthropic，
+// 接收标准 Anthropic Messages API 格式），故本桥直接透传 Anthropic 请求体，只需做
+// DeepSeek 专属的清洗与思考等级适配。兼容细节见 DeepSeek 官方文档
+// 「Using the Anthropic API」一章的 compatibility 表。
+//
+// 历史：早期 /anthropic 端点对「同一 assistant 消息含多个 tool_use（并发工具调用）」
+// 返回 400，故曾临时改走 OpenAI 兼容端点（makeUpstreamCall + core/anthropic-openai-
+// converter，见 2.7.6~2.7.9 的 CHANGELOG）。2026-08 实测并发 tool_use 已放行（历史与
+// 输出两个方向均 200），切回原生 Anthropic 直传路径——DeepSeek 隐式 Context Caching
+// 按「完整前缀单元」匹配，直传时 system / tools / 会话历史前缀稳定，缓存命中率从转换
+// 流的 ~65% 恢复到直传的 ~98%。
 
 // DeepSeek 系列模型的最大输出 token 钳制值。DeepSeek-V4 系列（pro / flash）上下文
 // 窗口 1M、单次输出能力充裕（官方未公布精确输出上限，第三方实测 v4-flash 可达 384K），
@@ -44,7 +41,20 @@ function mapEffortToDeepSeek(effort) {
   return null; // 未知值不写
 }
 
-// stripCacheControl 从 converter 模块导入（与 GLM adapter 共用同一实现）。
+// 递归剥离所有 cache_control 字段。DeepSeek 官方兼容表明确 cache_control 标记为
+// Ignored——DeepSeek 有自己的隐式 Context Caching（按 prompt 前缀自动匹配，不读
+// Anthropic 的 cache_control 标记），留着只是请求体膨胀，故全量剥离。
+function stripCacheControl(node) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const item of node) stripCacheControl(item);
+    return;
+  }
+  delete node.cache_control;
+  for (const v of Object.values(node)) {
+    if (v && typeof v === 'object') stripCacheControl(v);
+  }
+}
 
 module.exports = {
   name: 'ds',
@@ -127,120 +137,5 @@ module.exports = {
     // formatCacheUsage），无需在请求体打标。
 
     return obj;
-  },
-
-  // 接管上游请求：Anthropic → OpenAI 格式转换 + 调 DeepSeek OpenAI 端点 +
-  // OpenAI → Anthropic 格式转回。绕开 DeepSeek Anthropic 兼容端点的并发 tool_use 限制。
-  //
-  // 调用时机：server 在 send() 里检测到本方法存在时，把请求控制权交给 adapter；
-  // adapter 自行构建 HTTPS 请求、处理上游响应、返回 Anthropic 格式结果。
-  // server 在拿到返回结果后走 handleUpstreamResponse（注入 modelUsage / 统计 usage）。
-  //
-  // @param {object} ctx - { apiKey, anthropicBody, method, stream, log }
-  // @returns {Promise<object>} - resolve Anthropic 格式的上游响应对象（stream / non-stream）
-  //   non-stream: { status, headers, body: Buffer }
-  //   stream: { status, headers, stream: Readable }
-  // @throws {Object} - { status, err } 让 server 的 failover 逻辑判断重试 / 换 KEY
-  makeUpstreamCall(ctx) {
-    const { apiKey, anthropicBody, stream, log } = ctx;
-
-    // 1. Anthropic → OpenAI 请求体
-    const { body: openaiBody } = convertRequestToOpenAI(anthropicBody);
-    // 预估算输入 token 数：OpenAI 流式 usage 只在流末尾返回，message_start 阶段
-    // 拿不到真实值，用估算值预填 input_tokens，让 CC 界面在流一开始就有计数。
-    const estimatedInputTokens = estimateInputTokens(openaiBody);
-
-    // 2. DeepSeek OpenAI 端点参数
-    //    base 从 this.apiBase（server 启动时注入）去掉 /anthropic 后缀，拼 /chat/completions。
-    //    若 apiBase 不含 /anthropic 后缀，直接拼。
-    const rawBase = (this.apiBase || 'https://api.deepseek.com').replace(/\/+$/, '');
-    const openaiBase = rawBase.replace(/\/anthropic$/i, '');
-    const url = new URL(`${openaiBase}/chat/completions`);
-    const bodyStr = JSON.stringify(openaiBody);
-
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Length': Buffer.byteLength(bodyStr),
-    };
-
-    if (log) log(`  → OpenAI endpoint: ${url.hostname}${url.pathname}  stream=${stream}`);
-
-    // 3. 发送请求
-    return new Promise((resolve, reject) => {
-      const req = https.request({
-        hostname: url.hostname,
-        port: url.port || 443,
-        path: url.pathname + url.search,
-        method: 'POST',
-        headers,
-      }, (upRes) => {
-        const status = upRes.statusCode || 502;
-
-        // 上游错误：读完错误响应体再向上抛——DeepSeek 的 4xx 体里带具体原因
-        // （如 reasoning_content 未回传 / 模型不存在），丢失它会让排障变成盲猜。
-        if (status >= 400) {
-          const errChunks = [];
-          upRes.on('data', (c) => errChunks.push(c));
-          upRes.on('end', () => {
-            const raw = Buffer.concat(errChunks).toString('utf-8');
-            let detail = '';
-            try { detail = (JSON.parse(raw).error || {}).message || ''; } catch { /* 非 JSON */ }
-            if (!detail) detail = raw.replace(/\s+/g, ' ').trim().slice(0, 300);
-            const suffix = detail ? `: ${detail}` : '';
-            reject({ status, err: new Error(`DeepSeek OpenAI endpoint returned ${status}${suffix}`) });
-          });
-          upRes.on('error', () => {
-            reject({ status, err: new Error(`DeepSeek OpenAI endpoint returned ${status}`) });
-          });
-          return;
-        }
-
-        if (stream) {
-          // 流式：逐 chunk 实时转换转发（thinking / text 实时输出，tool_calls 在
-          // 流末尾批量输出）。边收边转让 Claude Code 逐字看到思考与正文，而不是
-          // 等上游全部生成完再一次性返回（此前缓冲整流的做法会「卡很久然后突然
-          // 闪出一大段」）。
-          const anthropicStream = streamOpenAIToAnthropic(upRes, anthropicBody.model, estimatedInputTokens);
-          resolve({
-            status: 200,
-            headers: { 'content-type': 'text/event-stream' },
-            stream: anthropicStream,
-          });
-          // upRes 的 error 由 streamOpenAIToAnthropic 内部转给 out 流（destroy）；
-          // 这里不再 reject——resolve 已发出，reject 无意义。
-        } else {
-          // 非流式：缓冲完整响应，转为 Anthropic 格式
-          const chunks = [];
-          upRes.on('data', (c) => chunks.push(c));
-          upRes.on('end', () => {
-            const raw = Buffer.concat(chunks).toString('utf-8');
-            try {
-              const openaiRes = JSON.parse(raw);
-              const anthropicRes = convertResponseToAnthropic(openaiRes, anthropicBody.model);
-              const anthropicBodyStr = JSON.stringify(anthropicRes);
-              resolve({
-                status: 200,
-                headers: {
-                  'content-type': 'application/json',
-                  'content-length': String(Buffer.byteLength(anthropicBodyStr)),
-                },
-                body: Buffer.from(anthropicBodyStr, 'utf-8'),
-              });
-            } catch (e) {
-              reject({ status, err: new Error(`Failed to convert OpenAI response: ${e.message}`) });
-            }
-          });
-          upRes.on('error', (err) => reject({ status, err }));
-        }
-      });
-
-      req.on('error', (err) => {
-        reject({ status: 0, err });
-      });
-
-      req.write(bodyStr);
-      req.end();
-    });
   },
 };
