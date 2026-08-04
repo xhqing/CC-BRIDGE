@@ -2,6 +2,13 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.7.6] - 2026-08-04
+
+### Fixed
+
+- **修复 DeepSeek 400「assistant tool_calls 后无对应 tool 消息」**：OpenAI 兼容端点（`/chat/completions`）硬性要求带 `tool_calls` 的 assistant 消息之后必须紧接覆盖每个 `tool_call_id` 的 `tool` 消息，中间不能夹 `user` 消息。两类场景触发：①Claude Code 在同一个 `user` 消息里混排正文文本与 `tool_result` 块，转换时正文被插到 assistant `tool_calls` 与 `tool` 响应之间；②上下文压缩（`/compact`、自动压缩）或历史截断把某轮 assistant 的 `tool_use` 留下、丢掉其后的 `tool_result`，形成孤立 `tool_calls`（或孤立 `tool` 消息）。
+  - **转换器修复（`core/anthropic-openai-converter.js`）**：同一条 `user` 消息拆开时 **`tool` 响应排前、正文排后**，保证 `tool` 消息紧邻其 assistant `tool_calls`；新增 `repairToolSequences()` 兜底——压缩/截断残留的未响应 `tool_calls` 从对应 assistant 消息剥离（保留正文与思考内容，连带移除已发出的孤儿 `tool` 消息与 `reasoning_content` 占位符），孤立 `tool` 消息直接丢弃，正常历史原样保留。
+
 ## [2.7.5] - 2026-08-04
 
 ### Changed

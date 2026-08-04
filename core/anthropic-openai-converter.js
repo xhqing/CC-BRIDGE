@@ -105,18 +105,12 @@ function convertMessages(anthropicMessages) {
       if (typeof msg.content === 'string') {
         out.push({ role: 'user', content: msg.content });
       } else if (Array.isArray(msg.content)) {
-        // 先发非 tool_result 的 user 内容（text / image 等）
-        const nonToolBlocks = msg.content.filter(
-          (b) => b && typeof b === 'object' && b.type !== 'tool_result',
-        );
-        for (const block of nonToolBlocks) {
-          if (block.type === 'text' && block.text != null) {
-            out.push({ role: 'user', content: block.text });
-          }
-          // image / other types → 暂不转换（DeepSeek function calling 场景下极少出现）
-        }
-
-        // tool_result → role:"tool" 独立消息
+        // tool_result → role:"tool" 独立消息，且必须先于同 user 消息内的正文发出。
+        // OpenAI / DeepSeek 硬性要求：带 tool_calls 的 assistant 消息之后必须紧接
+        // 覆盖每个 tool_call_id 的 tool 消息，中间不能夹 user 消息；而 Anthropic
+        // 允许 text 与 tool_result 混在同一 user 消息里，拆开时若正文在前会插到
+        // assistant tool_calls 与 tool 响应之间 → 上游 400「insufficient tool
+        // messages following tool_calls message」。故 tool 排前、正文排后。
         const toolResults = msg.content.filter(
           (b) => b && typeof b === 'object' && b.type === 'tool_result',
         );
@@ -132,12 +126,100 @@ function convertMessages(anthropicMessages) {
           } else {
             content = '';
           }
+          // 缺 tool_use_id 的 tool_result 无法对应任何 tool_call，丢弃以免产生
+          // 孤立 tool 消息触发上游 400。
+          if (tr.tool_use_id == null) continue;
           out.push({ role: 'tool', tool_call_id: tr.tool_use_id, content });
+        }
+
+        // 非 tool_result 的 user 内容（text / image 等）
+        const nonToolBlocks = msg.content.filter(
+          (b) => b && typeof b === 'object' && b.type !== 'tool_result',
+        );
+        for (const block of nonToolBlocks) {
+          if (block.type === 'text' && block.text != null) {
+            out.push({ role: 'user', content: block.text });
+          }
+          // image / other types → 暂不转换（DeepSeek function calling 场景下极少出现）
         }
       }
     }
     // system 消息由 extractSystemText 单独处理，不进 messages
   }
+  return out;
+}
+
+/**
+ * 兜底修复转换后的 OpenAI messages，满足 OpenAI / DeepSeek 的 tool 序列硬性约束：
+ * 带 tool_calls 的 assistant 消息之后必须紧接覆盖每个 tool_call_id 的 tool 消息。
+ *
+ * 触发场景：Claude Code 的上下文压缩（/compact、自动压缩）或历史截断会把某轮
+ * assistant 的 tool_use 留下、却丢掉了其后的 tool_result——转换后便出现孤立的
+ * tool_calls；或是压缩摘要本身把 tool 回合拦腰截断。这类请求发给 DeepSeek 会
+ * 直接 400「An assistant message with 'tool_calls' must be followed by tool
+ * messages responding to each 'tool_call_id'」。
+ *
+ * 修复策略（只动异常序列，正常历史原样保留）：
+ *   · assistant 消息带 tool_calls，但其后没有覆盖全部 id 的 tool 消息 → 从该
+ *     assistant 消息上剥离 tool_calls（保留正文与思考内容），使序列合法；
+ *   · 孤立的 tool 消息（其 tool_call_id 无对应的 assistant tool_calls）→ 丢弃，
+ *     避免「tool 消息没有前置 tool_calls」的对称错误。
+ *
+ * @param {Array<object>} msgs 转换后的 OpenAI messages
+ * @returns {Array<object>} 修复后的 messages
+ */
+function repairToolSequences(msgs) {
+  if (!Array.isArray(msgs) || msgs.length === 0) return msgs;
+  const out = [];
+  // 当前「待响应」的 tool 状态：{ ids: 未响应 id 集合, assistantIndex: 该 assistant
+  // 在 out 中的下标 }。遇到 role=tool 且 id 命中即从未响应集合移除；遇到新的
+  // assistant / user / system 消息或到达末尾时，若仍有未响应 id，说明该轮
+  // tool_calls 是截断残留 → 剥离并清理。
+  let pending = null;
+
+  const stripPending = () => {
+    if (!pending || pending.ids.size === 0) return;
+    const a = out[pending.assistantIndex];
+    if (a && a.role === 'assistant') {
+      delete a.tool_calls;
+      // 仅含 tool_calls 的 assistant 消息 content 为 null，剥离后补空串，
+      // 避免「无正文且无 tool_calls 的 assistant 消息」触发其它校验。
+      if (a.content == null) a.content = '';
+      // reasoning_content 占位符（' '）仅为 tool_calls 回合兜底，随 tool_calls
+      // 一起移除，避免无谓的思考占位污染上下文。
+      if (a.reasoning_content === ' ') delete a.reasoning_content;
+      // 已发出的、响应这批 tool_calls 的 tool 消息随之成为孤儿（其 tool_calls
+      // 已被剥离），一并移除，避免「tool 消息没有前置 tool_calls」的对称 400。
+      out.splice(pending.assistantIndex + 1, out.length - pending.assistantIndex - 1);
+    }
+    pending = null;
+  };
+
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    if (m.role === 'assistant') {
+      stripPending();
+      pending = Array.isArray(m.tool_calls) && m.tool_calls.length
+        ? { ids: new Set(m.tool_calls.map((tc) => tc && tc.id).filter((id) => id != null)), assistantIndex: out.length }
+        : null;
+      out.push(m);
+    } else if (m.role === 'tool') {
+      if (pending && m.tool_call_id != null && pending.ids.has(m.tool_call_id)) {
+        pending.ids.delete(m.tool_call_id);
+        out.push(m);
+      }
+      // 孤立 tool 消息：无对应 assistant tool_calls（压缩把前置 assistant 整条
+      // 丢掉了），或 id 不在当前待响应集合中。留着会触发「tool 消息没有前置
+      // tool_calls」400，直接丢弃。
+    } else {
+      // user / system：新消息打断。若此时还有未响应的 tool_calls → 截断残留。
+      stripPending();
+      out.push(m);
+    }
+  }
+  // 尾部：请求以「带 tool_calls 的 assistant」结束（无任何后续消息），同属截断残留。
+  stripPending();
+
   return out;
 }
 
@@ -194,7 +276,9 @@ function convertRequestToOpenAI(anthropicBody) {
   if (systemText) messages.push({ role: 'system', content: systemText });
 
   // messages
-  messages.push(...convertMessages(anthropicBody.messages));
+  // repairToolSequences：兜底修复上下文压缩 / 历史截断残留的 tool 序列（见函数注释），
+  // 避免「assistant tool_calls 后无对应 tool 消息」被 DeepSeek 400 拒收。
+  messages.push(...repairToolSequences(convertMessages(anthropicBody.messages)));
 
   // 构建 OpenAI 请求体
   const openaiBody = {
