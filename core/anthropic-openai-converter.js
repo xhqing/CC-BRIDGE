@@ -324,6 +324,46 @@ function convertRequestToOpenAI(anthropicBody) {
 // ─── 响应转换：OpenAI → Anthropic ─────────────────────────────────────────
 
 /**
+ * 把 OpenAI / DeepSeek 的 usage 映射为 Anthropic 口径的 usage。
+ *
+ * DeepSeek usage 结构（与 OpenAI 兼容）：
+ *   prompt_tokens / completion_tokens / total_tokens
+ *   prompt_cache_hit_tokens / prompt_cache_miss_tokens（prompt_tokens = hit + miss）
+ * 部分实现还会带 prompt_tokens_details.cached_tokens（OpenAI 规范口径）。
+ *
+ * Anthropic 口径：input_tokens 不含缓存命中，缓存单独用 cache_read_input_tokens /
+ * cache_creation_input_tokens 表达，总输入 = read + created + input_tokens。
+ *
+ * 映射规则（保证 server 侧「input = read + created + input_tokens」公式不重复计数）：
+ *   input_tokens           = miss（= prompt_tokens - hit，不含命中部分）
+ *   cache_read_input_tokens= hit（DeepSeek 缓存命中，等价于 Anthropic 的 read）
+ *   output_tokens          = completion_tokens
+ *
+ * @param {object|null} usage - OpenAI 风格 usage；null / 无可用字段时返回全 0。
+ * @returns {object} Anthropic 口径 usage（input_tokens / output_tokens 恒在，
+ *   有命中信息时才带 cache_read_input_tokens）
+ */
+function openaiUsageToAnthropic(usage) {
+  if (!usage || typeof usage !== 'object') {
+    return { input_tokens: 0, output_tokens: 0 };
+  }
+  const hit =
+    (usage.prompt_cache_hit_tokens != null ? usage.prompt_cache_hit_tokens : 0) ||
+    (usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens) || 0;
+  const prompt = usage.prompt_tokens || 0;
+  const miss = Math.max(prompt - hit, 0);
+  const out = {
+    input_tokens: miss,
+    output_tokens: usage.completion_tokens || 0,
+  };
+  const hasCacheInfo =
+    usage.prompt_cache_hit_tokens != null ||
+    (usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens != null);
+  if (hasCacheInfo) out.cache_read_input_tokens = hit;
+  return out;
+}
+
+/**
  * 递归尝试解析 JSON 字符串；失败返回原值。
  */
 function tryParseJSON(str) {
@@ -367,7 +407,7 @@ function convertResponseToAnthropic(openaiRes, requestModel) {
     }
   }
 
-  const usage = openaiRes.usage || {};
+  const usage = openaiUsageToAnthropic(openaiRes.usage);
   return {
     id: openaiRes.id || 'msg_openai_bridge',
     type: 'message',
@@ -375,10 +415,7 @@ function convertResponseToAnthropic(openaiRes, requestModel) {
     model: requestModel || openaiRes.model || 'unknown',
     content,
     stop_reason: mapFinishReason(choice.finish_reason),
-    usage: {
-      input_tokens: usage.prompt_tokens || 0,
-      output_tokens: usage.completion_tokens || 0,
-    },
+    usage,
   };
 }
 
@@ -475,10 +512,7 @@ function convertStreamToAnthropicEvents(openaiSseText, requestModel) {
     model: requestModel || 'unknown',
     content,
     stop_reason: mapFinishReason(finishReason),
-    usage: {
-      input_tokens: (usage && usage.prompt_tokens) || 0,
-      output_tokens: (usage && usage.completion_tokens) || 0,
-    },
+    usage: openaiUsageToAnthropic(usage),
   };
 
   // 以 Anthropic streaming 格式输出事件序列
@@ -636,16 +670,14 @@ function streamOpenAIToAnthropic(openaiStream, requestModel, estimatedInputToken
       });
       s += ev('content_block_stop', { type: 'content_block_stop', index: i });
     }
-    // 流末尾的真实 usage（include_usage chunk）已到手：output_tokens 是精确值，
-    // input_tokens 用真实 prompt_tokens 覆盖 message_start 里的估算值，让
-    // Claude Code 在流结束时得到完整准确的 usage。
+    // 流末尾的真实 usage（include_usage chunk）已到手：用 openaiUsageToAnthropic
+    // 映射为 Anthropic 口径——input_tokens 为不含命中部分的 miss、命中单独放
+    // cache_read_input_tokens，output_tokens 为精确值。这样 server 侧按
+    // 「read + created + input_tokens」累计即为真实总输入，命中率口径与单请求一致。
     s += ev('message_delta', {
       type: 'message_delta',
       delta: { stop_reason: mapFinishReason(finishReason) },
-      usage: {
-        input_tokens: (usage && usage.prompt_tokens) || 0,
-        output_tokens: (usage && usage.completion_tokens) || 0,
-      },
+      usage: openaiUsageToAnthropic(usage),
     });
     s += ev('message_stop', { type: 'message_stop' });
     return s;
@@ -657,10 +689,12 @@ function streamOpenAIToAnthropic(openaiStream, requestModel, estimatedInputToken
     let chunk;
     try { chunk = JSON.parse(data); } catch { return ''; }
 
-    // 流末尾的 usage-only chunk（stream_options.include_usage=true 时，无 choices）。
-    if (chunk.usage && (!chunk.choices || !chunk.choices.length)) {
+    // 捕获流末尾的 usage：OpenAI 规范是独立的 choices:[] chunk；DeepSeek 实测是
+    // 最后一个带 finish_reason 的 chunk 上直接挂 usage（choices 非空、delta 无内容）。
+    // 两种都认——只要 usage 是非空对象就记录；不再提前 return，让后续逻辑照常
+    // 处理 finish_reason 等字段（无 usage 的普通 chunk 其 usage 为 null，自然跳过）。
+    if (chunk.usage && typeof chunk.usage === 'object') {
       usage = chunk.usage;
-      return '';
     }
 
     const choice = (chunk.choices && chunk.choices[0]) || {};
@@ -824,6 +858,7 @@ module.exports = {
   convertResponseToAnthropic,
   convertStreamToAnthropicEvents,
   streamOpenAIToAnthropic,
+  openaiUsageToAnthropic,
   estimateTokens,
   estimateInputTokens,
   stripCacheControl,

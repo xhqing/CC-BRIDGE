@@ -120,7 +120,10 @@ function startServer(cfg, adapter) {
   // partial=true：流式末尾 message_delta.usage——Anthropic 规范里它只含输出侧统计
   // （output_tokens，部分上游还带 cache_creation_input_tokens），只补充累计、
   // 不重复计请求数（同一请求的请求数已在 message_start 计过）。
-  function recordUsage(model, usage, partial) {
+  // base（可选）：本请求 message_start 记入前的输入侧快照。DS 等走 OpenAI 转换的
+  // 上游，流式真实 usage 只在 delta 返回（message_start 只有估算值），传入 base 后
+  // delta 用真实值「回退估算 + 重记真实」输入侧，避免估算污染 stats。
+  function recordUsage(model, usage, partial, base) {
     if (!model || !usage || typeof usage !== 'object') return;
     const s = (stats.models[model] ||= {
       requests: 0, inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheCreatedTokens: 0,
@@ -134,6 +137,17 @@ function startServer(cfg, adapter) {
       // 都报 creation，此处会重复累计，需注意。
       s.outputTokens += usage.output_tokens || 0;
       s.cacheCreatedTokens += usage.cache_creation_input_tokens || 0;
+      // 输入侧真实值只在 delta 返回（DeepSeek OpenAI 转换流）：回退本请求
+      // message_start 的估算输入，按「read + created + input_tokens」口径改记真实值
+      // （与 message_start 分支同口径，保证命中率 = 命中 / 总输入 一致）。Anthropic
+      // 规范上游的 delta 不带输入侧字段（input_tokens 不存在或为 0），此分支不触发。
+      if (base && (usage.input_tokens > 0 || usage.cache_read_input_tokens > 0)) {
+        const read = usage.cache_read_input_tokens || 0;
+        const created = usage.cache_creation_input_tokens || 0;
+        s.inputTokens = base.inputTokens + read + created + (usage.input_tokens || 0);
+        s.cacheHitTokens = base.cacheHitTokens + read;
+        s.cacheCreatedTokens = base.cacheCreatedTokens + created;
+      }
       stats.updatedAt = new Date().toISOString();
       statsDirty = true;
       maybeFlushStats();
@@ -278,6 +292,9 @@ function startServer(cfg, adapter) {
       // 本次请求的真实 target 模型（spoof 改写后 / 直传），提升到回调级供
       // handleUpstreamResponse 使用（按模型统计需要它在响应处理时可见）。
       let currentTarget = null;
+      // 本请求 message_start 记入前的输入侧快照：DS 等转换流的真实 usage 在
+      // message_delta 才返回，需用它回退估算值（见 recordUsage 的 base 参数）。
+      let msgStartBase = null;
 
       // Only rewrite the model on /v1/messages POSTs with a JSON body.
       if (clientReq.method === 'POST' && urlPath.startsWith('/v1/messages') && body.length) {
@@ -414,7 +431,16 @@ function startServer(cfg, adapter) {
                 let out = line;
                 try {
                   const data = JSON.parse(line.slice(5).trim());
-                  recordUsage(currentTarget, data.usage, true);
+                  recordUsage(currentTarget, data.usage, true, msgStartBase);
+                  msgStartBase = null; // delta 每请求只来一次，用后即弃防重复回退
+                  // 缓存命中观测：DS 等转换流的真实缓存信息只在 delta 返回，
+                  // 与 message_start 的旁路观测互补（Anthropic 规范上游的 delta
+                  // 无缓存字段，不会打日志）。
+                  if (data.usage &&
+                      (data.usage.cache_read_input_tokens != null || data.usage.cache_creation_input_tokens != null)) {
+                    const cu = formatCacheUsage(data.usage);
+                    if (cu) log('  ' + cu);
+                  }
                   if (mu) {
                     data.modelUsage = mu;
                     if (data.total_cost_usd === undefined) data.total_cost_usd = 0;
@@ -430,6 +456,11 @@ function startServer(cfg, adapter) {
                 try {
                   const data = JSON.parse(line.slice(5).trim());
                   const u = data.message && data.message.usage;
+                  // 先快照再累计：供 message_delta 用真实 usage 回退本请求的估算输入
+                  const s0 = currentTarget && stats.models[currentTarget];
+                  msgStartBase = s0
+                    ? { inputTokens: s0.inputTokens, cacheHitTokens: s0.cacheHitTokens, cacheCreatedTokens: s0.cacheCreatedTokens }
+                    : null;
                   recordUsage(currentTarget, u);
                   const cu = formatCacheUsage(u);
                   if (cu) log('  ' + cu);
