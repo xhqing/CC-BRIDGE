@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.7.5] - 2026-08-04
+
+### Changed
+
+- **新增 `.codebuddy` 项目指南与安装规则**：新增 `.codebuddy/CLAUDE.md`（项目指南，含架构要点、新增上游流程、CLI/配置说明）与 `.codebuddy/rules/cc-bridge-install.md`（运行版本必须从 GitHub Release 的 tgz 全局安装、禁止 `npm link` 的规则），供 CodeBuddy 在项目内读取。
+
 ## [2.7.4] - 2026-08-04
 
 ### Fixed
