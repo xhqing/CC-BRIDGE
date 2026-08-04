@@ -12,6 +12,7 @@ CC-BRIDGE 是 Claude Code 上游桥接框架（GLM / DeepSeek / MiMo / Kimi / Qw
 ## 项目规则
 
 - @rules/cc-bridge-install.md  cc-bridge 运行版本必须从 GitHub Release 的 tgz 全局安装，禁止用 `npm link` 把开发目录链接为全局命令。
+- 发布到 GitHub Release 就是要发布构建产物的，不用问用户，直接发布构建产物。
 
 ## commit skill 检测缓存
 
