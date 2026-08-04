@@ -571,9 +571,12 @@ function convertStreamToAnthropicEvents(openaiSseText, requestModel) {
  *
  * @param {Readable} openaiStream - DeepSeek OpenAI 端点的 SSE 流（upRes）
  * @param {string} requestModel - 请求中的 model
+ * @param {number} [estimatedInputTokens] - 预估值（来自请求体估算），用于在
+ *   message_start 填充 input_tokens——OpenAI 流式 usage 只在流末尾返回，提前
+ *   填入可让 Claude Code 界面在流一开始就显示输入 token 计数。
  * @returns {Readable} Anthropic SSE 文本流
  */
-function streamOpenAIToAnthropic(openaiStream, requestModel) {
+function streamOpenAIToAnthropic(openaiStream, requestModel, estimatedInputTokens) {
   const { Readable } = require('stream');
   const out = new Readable({ read() {} });
 
@@ -633,10 +636,16 @@ function streamOpenAIToAnthropic(openaiStream, requestModel) {
       });
       s += ev('content_block_stop', { type: 'content_block_stop', index: i });
     }
+    // 流末尾的真实 usage（include_usage chunk）已到手：output_tokens 是精确值，
+    // input_tokens 用真实 prompt_tokens 覆盖 message_start 里的估算值，让
+    // Claude Code 在流结束时得到完整准确的 usage。
     s += ev('message_delta', {
       type: 'message_delta',
       delta: { stop_reason: mapFinishReason(finishReason) },
-      usage: { output_tokens: (usage && usage.completion_tokens) || 0 },
+      usage: {
+        input_tokens: (usage && usage.prompt_tokens) || 0,
+        output_tokens: (usage && usage.completion_tokens) || 0,
+      },
     });
     s += ev('message_stop', { type: 'message_stop' });
     return s;
@@ -660,6 +669,9 @@ function streamOpenAIToAnthropic(openaiStream, requestModel) {
 
     if (!started) {
       started = true;
+      // 流式响应中真实 usage 只在流末尾返回（include_usage chunk），message_start
+      // 阶段拿不到——用请求侧估算值预填 input_tokens，让 CC 界面在流一开始就有
+      // 接近真实的输入计数；流末尾 message_delta 再以真实 usage 为准。
       s += ev('message_start', {
         type: 'message_start',
         message: {
@@ -668,7 +680,7 @@ function streamOpenAIToAnthropic(openaiStream, requestModel) {
           role: delta.role || 'assistant',
           model: requestModel || 'unknown',
           content: [],
-          usage: { input_tokens: 0, output_tokens: 0 },
+          usage: { input_tokens: estimatedInputTokens || 0, output_tokens: 0 },
         },
       });
     }
@@ -742,6 +754,57 @@ function streamOpenAIToAnthropic(openaiStream, requestModel) {
 // ─── 工具函数 ──────────────────────────────────────────────────────────────
 
 /**
+ * 粗略估算一段文本的 token 数（用于在流式响应中提前注入 message_start 的
+ * input_tokens，让 Claude Code 界面在流一开始就有接近真实的输入 token 计数）。
+ *
+ * 估算口径：CJK 字符按 1 字符 ≈ 1 token；其余（拉丁/数字/标点/空白）按
+ * 4 字符 ≈ 1 token。这是通用近似，不追求精确——OpenAI 流式端点的 usage 只在
+ * 流末尾返回（stream_options.include_usage），message_start 阶段拿不到真实值，
+ * 只能先用估算让界面「有数」，流结束的 message_delta 再以真实 usage 为准。
+ *
+ * @param {*} v - 文本或任意 JSON 值（对象/数组会被序列化后估算）
+ * @returns {number} 估算 token 数
+ */
+function estimateTokens(v) {
+  let str;
+  if (typeof v === 'string') str = v;
+  else if (v == null) return 0;
+  else str = JSON.stringify(v);
+  let cjk = 0;
+  let other = 0;
+  for (const ch of str) {
+    if (/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/.test(ch)) cjk++;
+    else other++;
+  }
+  return Math.ceil(cjk + other / 4);
+}
+
+/**
+ * 估算 OpenAI 请求体的输入 token 数：messages 正文 + tools 定义 + system。
+ * 用于流式响应 message_start 的 input_tokens 预填。
+ *
+ * @param {object} openaiBody - convertRequestToOpenAI 产出的 OpenAI 请求体
+ * @returns {number} 估算的输入 token 数
+ */
+function estimateInputTokens(openaiBody) {
+  if (!openaiBody || typeof openaiBody !== 'object') return 0;
+  let total = 0;
+  if (Array.isArray(openaiBody.messages)) {
+    for (const m of openaiBody.messages) {
+      if (!m || typeof m !== 'object') continue;
+      if (typeof m.content === 'string') total += estimateTokens(m.content);
+      else if (m.content != null) total += estimateTokens(m.content);
+      // reasoning_content / tool_calls 由 JSON 序列化兜底覆盖
+      if (m.reasoning_content) total += estimateTokens(m.reasoning_content);
+      if (Array.isArray(m.tool_calls)) total += estimateTokens(m.tool_calls);
+    }
+  }
+  if (openaiBody.system) total += estimateTokens(openaiBody.system);
+  if (Array.isArray(openaiBody.tools)) total += estimateTokens(openaiBody.tools);
+  return total;
+}
+
+/**
  * 递归剥离所有 cache_control 字段。DeepSeek 不识别该标记（有隐式缓存），留着只是膨胀。
  */
 function stripCacheControl(node) {
@@ -761,5 +824,7 @@ module.exports = {
   convertResponseToAnthropic,
   convertStreamToAnthropicEvents,
   streamOpenAIToAnthropic,
+  estimateTokens,
+  estimateInputTokens,
   stripCacheControl,
 };

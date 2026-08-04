@@ -2,6 +2,14 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.7.8] - 2026-08-04
+
+### Fixed
+
+- **修复 DeepSeek 流式响应时 Claude Code 界面 token 计数滞后**：OpenAI 流式端点的 usage 只在流末尾返回（`stream_options.include_usage`），此前实时流式转换器在 `message_start` 里写死 `input_tokens: 0`——CC 界面 token 计数在流式过程中一直是 0，直到流结束 `message_delta` 才跳变，看起来比走 Anthropic 接口（z.ai 在 `message_start` 就带真实 `input_tokens`）慢一拍。
+  - **转换器（`core/anthropic-openai-converter.js`）**：新增 `estimateTokens()` / `estimateInputTokens()`（CJK 1 字符 ≈ 1 token、其余 4 字符 ≈ 1 token 的通用估算）；`streamOpenAIToAnthropic()` 新增 `estimatedInputTokens` 参数，`message_start` 用估算值预填 `input_tokens`，让 CC 界面在流一开始就有接近真实的输入计数；`message_delta` 补全真实 `input_tokens`（`prompt_tokens`）+ `output_tokens`，流结束时以精确值覆盖。
+  - **adapter（`cc-ds-bridge/adapter.js`）**：`makeUpstreamCall` 在请求侧用 `estimateInputTokens(openaiBody)` 估算并传入流式转换器。`cc-bridge ds stats` 输入侧此前恒 0（流式 start 无 input），现能累计估算值；输出侧仍以流末尾真实值累计，不重复计数。
+
 ## [2.7.7] - 2026-08-04
 
 ### Fixed

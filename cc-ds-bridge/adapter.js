@@ -15,6 +15,7 @@ const {
   convertRequestToOpenAI,
   convertResponseToAnthropic,
   streamOpenAIToAnthropic,
+  estimateInputTokens,
   stripCacheControl,
 } = require('../core/anthropic-openai-converter');
 
@@ -145,6 +146,9 @@ module.exports = {
 
     // 1. Anthropic → OpenAI 请求体
     const { body: openaiBody } = convertRequestToOpenAI(anthropicBody);
+    // 预估算输入 token 数：OpenAI 流式 usage 只在流末尾返回，message_start 阶段
+    // 拿不到真实值，用估算值预填 input_tokens，让 CC 界面在流一开始就有计数。
+    const estimatedInputTokens = estimateInputTokens(openaiBody);
 
     // 2. DeepSeek OpenAI 端点参数
     //    base 从 this.apiBase（server 启动时注入）去掉 /anthropic 后缀，拼 /chat/completions。
@@ -197,7 +201,7 @@ module.exports = {
           // 流末尾批量输出）。边收边转让 Claude Code 逐字看到思考与正文，而不是
           // 等上游全部生成完再一次性返回（此前缓冲整流的做法会「卡很久然后突然
           // 闪出一大段」）。
-          const anthropicStream = streamOpenAIToAnthropic(upRes, anthropicBody.model);
+          const anthropicStream = streamOpenAIToAnthropic(upRes, anthropicBody.model, estimatedInputTokens);
           resolve({
             status: 200,
             headers: { 'content-type': 'text/event-stream' },
