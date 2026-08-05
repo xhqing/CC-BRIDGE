@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.8.1] - 2026-08-05
+
+### Fixed
+
+- **修复 `/anthropic` 直传路径的 tool 序列 400（2.8.0 发布后补录）**：真实 Claude Code 请求触发 DeepSeek `/anthropic` 端点 400（`tool_use ids were found without tool_result blocks immediately after`）。`cc-ds-bridge/adapter.js` 的 `adaptRequestBody` 新增 `repairToolSequence`——`server_tool_use` / 同消息 `tool_result` 展开为纯 `text`（保留内容、去掉 tool 语义）；剥离未被下一条消息 `tool_result` 覆盖的孤立 `tool_use`；剥离无对应前置 `tool_use` 的孤立 `tool_result`；`tool_use` 与其它块交错时整体挪到消息末尾连续放置。实测真实失败请求（396 条消息 / 478k token、844 条消息 / 63 路并行 tool_use / 666k token）修复后均 200，缓存命中 99~100%。
+
 ## [2.8.0] - 2026-08-04
 
 ### Changed
