@@ -41,6 +41,103 @@ function mapEffortToDeepSeek(effort) {
   return null; // 未知值不写
 }
 
+// 修复 Anthropic 消息序列中的 tool 校验问题（DeepSeek /anthropic 端点硬校验，实测
+// 会 400「tool_use ids were found without tool_result blocks immediately after」）：
+//   1) Claude Code 的 server tools（如 webReader，服务端执行）会把 server_tool_use 块
+//      与结果 tool_result 块一并塞进同一条 assistant 消息——DeepSeek 校验器不认这种
+//      结构（把 server_tool_use 当 tool_use，要求结果在「下一条消息」；且 assistant
+//      消息里不允许出现 tool_result），直接 400。把 server_tool_use / 同消息
+//      tool_result 展开为纯 text，保留内容、去掉 tool 语义。
+//   2) 上下文压缩（/compact、自动压缩）会留下孤立 tool_use（丢掉了随后的 tool_result）：
+//      从 assistant 消息剥离未配对 tool_use；反向的孤立 tool_result 一并剥离。
+//   3) tool_use 块连续化：DeepSeek /anthropic 校验器对「tool_use 与 thinking/text 交错」的
+//      assistant 消息会误判 tool_use 无 tool_result（400「tool_use ids were found without
+//      tool_result blocks」，实测 63 个并行 tool_use 交错时 400、挪到消息末尾连续时 200）。
+//      仅当存在交错时才重排，顺序稳定不影响缓存前缀。
+// 说明：thinking 块空 signature 不影响 DeepSeek（不校验 signature），无需处理。
+function repairToolSequence(messages) {
+  if (!Array.isArray(messages)) return messages;
+  const out = [];
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (!m || typeof m !== 'object') { out.push(m); continue; }
+    const next = messages[i + 1];
+
+    if (m.role === 'assistant' && Array.isArray(m.content)) {
+      // 1) server_tool_use / 同消息 tool_result → text（保留内容）
+      let need = false;
+      const nc = m.content.map((b) => {
+        if (!b || typeof b !== 'object') return b;
+        if (b.type === 'server_tool_use') {
+          need = true;
+          return { type: 'text', text: `[server_tool_use: ${b.name || 'tool'}]` };
+        }
+        if (b.type === 'tool_result') {
+          need = true;
+          const txt = typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '');
+          return { type: 'text', text: `[tool_result]\n${txt}` };
+        }
+        return b;
+      });
+      let content = need ? nc : m.content;
+
+      // 2) tool_use 块连续化：存在「非 tool_use 块出现在 tool_use 之后/之间」的交错时，
+      //    把全部 tool_use 挪到消息末尾（保持相对顺序），规避 DeepSeek 校验器的误判。
+      let firstToolIdx = -1;
+      let lastNonToolIdx = -1;
+      content.forEach((b, j) => {
+        if (b && b.type === 'tool_use') { if (firstToolIdx < 0) firstToolIdx = j; }
+        else if (b) lastNonToolIdx = j;
+      });
+      if (firstToolIdx >= 0 && lastNonToolIdx >= firstToolIdx) {
+        const tools = content.filter((b) => b && b.type === 'tool_use');
+        content = content.filter((b) => !(b && b.type === 'tool_use')).concat(tools);
+      }
+
+      // 3) 孤立 tool_use：其 id 未被下一条消息的 tool_result 覆盖 → 剥离
+      const tuIds = content
+        .filter((b) => b && b.type === 'tool_use' && b.id)
+        .map((b) => b.id);
+      if (tuIds.length && next && typeof next === 'object' && next.role === 'user' && Array.isArray(next.content)) {
+        const covered = new Set(
+          next.content
+            .filter((b) => b && b.type === 'tool_result' && b.tool_use_id)
+            .map((b) => b.tool_use_id),
+        );
+        const orphan = tuIds.filter((id) => !covered.has(id));
+        if (orphan.length) {
+          content = content.filter((b) => !(b.type === 'tool_use' && orphan.includes(b.id)));
+        }
+      }
+      if (content !== m.content) out.push({ ...m, content });
+      else out.push(m);
+    } else if (m.role === 'user' && Array.isArray(m.content)) {
+      // 4) 孤立 tool_result：其 tool_use_id 不在前一条 assistant 消息的 tool_use 里 → 剥离
+      const prev = out[out.length - 1];
+      const prevIds = new Set(
+        (prev && prev.role === 'assistant' && Array.isArray(prev.content))
+          ? prev.content
+              .filter((b) => b && (b.type === 'tool_use' || b.type === 'server_tool_use') && b.id)
+              .map((b) => b.id)
+          : [],
+      );
+      const bad = new Set(
+        m.content
+          .filter((b) => b && b.type === 'tool_result' && b.tool_use_id != null && !prevIds.has(b.tool_use_id))
+          .map((b) => b.tool_use_id),
+      );
+      if (bad.size) {
+        out.push({ ...m, content: m.content.filter((b) => !(b.type === 'tool_result' && bad.has(b.tool_use_id))) });
+      } else {
+        out.push(m);
+      }
+    } else {
+      out.push(m);
+    }
+  }
+  return out;
+}
+
 // 递归剥离所有 cache_control 字段。DeepSeek 官方兼容表明确 cache_control 标记为
 // Ignored——DeepSeek 有自己的隐式 Context Caching（按 prompt 前缀自动匹配，不读
 // Anthropic 的 cache_control 标记），留着只是请求体膨胀，故全量剥离。
@@ -112,6 +209,10 @@ module.exports = {
 
     // 递归剥离 cache_control（DeepSeek 忽略该标记）
     stripCacheControl(obj);
+
+    // 修复 tool 消息序列（server_tool_use 展开 / 孤立 tool_use、tool_result 剥离，
+    // 见 repairToolSequence 注释——不修会触发 /anthropic 端点的 400 校验）
+    if (Array.isArray(obj.messages)) obj.messages = repairToolSequence(obj.messages);
 
     // 钳 max_tokens 到目标模型上限
     if (obj.max_tokens != null) {

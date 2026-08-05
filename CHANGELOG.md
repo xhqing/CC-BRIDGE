@@ -10,6 +10,11 @@
   - **收益**：DeepSeek 隐式 Context Caching 按「完整前缀单元」匹配，直传时 system / tools / 会话历史前缀稳定，缓存命中率从转换流的 ~65% 恢复到直传的 ~98%（实测）；并发 `tool_use` 同步恢复。
   - **变更**：`cc-ds-bridge/adapter.js` 移除 `makeUpstreamCall` 与 `anthropic-openai-converter` 依赖，恢复本地 `stripCacheControl`；`API_BASE` 恢复为 `https://api.deepseek.com/anthropic`（模板 `ds.env.example` 与 `cc-ds-bridge/README.md` 同步）；`core/anthropic-openai-converter.js` 与框架层 `makeUpstreamCall` 接管路径保留，供其它上游复用。
 
+### Fixed
+
+- **修复 `/anthropic` 直传路径的 tool 序列 400**：真实 Claude Code 请求触发 DeepSeek `/anthropic` 端点 400（`tool_use ids were found without tool_result blocks immediately after`，CC 界面表现为「tool use concurrency issues」）。根因三类：①CC 的 server tools（webReader 等服务端执行工具）把 `server_tool_use` 与结果 `tool_result` 一并塞进同一条 assistant 消息，DeepSeek 校验器不认该结构（把 `server_tool_use` 当 `tool_use`、要求结果在「下一条消息」，且 assistant 消息不允许 `tool_result`）；②上下文压缩（`/compact`、自动压缩）留下孤立 `tool_use`（丢掉了随后的 `tool_result`）；③assistant 消息内 `tool_use` 与 `thinking`/`text` 块交错（CC 多子任务编排在单条消息发数十个并行 `tool_use` 时出现），DeepSeek 校验器误判配对（实测 63 个并行 `tool_use` 交错时 400、挪到消息末尾连续时 200）。
+  - **adapter（`cc-ds-bridge/adapter.js`）**：`adaptRequestBody` 新增 `repairToolSequence`——`server_tool_use` / 同消息 `tool_result` 展开为纯 `text`（保留内容、去掉 tool 语义）；剥离未被下一条消息 `tool_result` 覆盖的孤立 `tool_use`；剥离无对应前置 `tool_use` 的孤立 `tool_result`；`tool_use` 与其它块交错时整体挪到消息末尾连续放置（仅交错时重排、保持相对顺序，不影响缓存前缀）。实测真实失败请求（396 条消息 / 478k token、844 条消息 / 63 路并行 tool_use / 666k token）修复后均 200，缓存命中 99~100%。
+
 ## [2.7.9] - 2026-08-04
 
 ### Fixed

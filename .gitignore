@@ -39,3 +39,6 @@ build/
 
 # Temporary / scratch files (verification scripts, ad-hoc output)
 tmp/
+
+
+.codebuddy/
