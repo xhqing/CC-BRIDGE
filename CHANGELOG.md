@@ -2,6 +2,12 @@
 
 本项目所有重要变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [2.8.2] - 2026-08-06
+
+### Docs
+
+- **新增 README 演示图（SVG 源 + PNG 渲染）**：新增 `assets/demo/` 下 6 组演示图——`architecture`（架构图）、`terminal-startup` / `terminal-config` / `terminal-request` / `terminal-stats`（终端界面）、`thinking-config`（思考等级配置），供 README / 文档引用。
+
 ## [2.8.1] - 2026-08-05
 
 ### Fixed
