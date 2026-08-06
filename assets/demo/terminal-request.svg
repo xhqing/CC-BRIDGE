@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 780" font-family="'SF Mono', Menlo, Monaco, 'PingFang SC', 'Microsoft YaHei', monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#0a0d12"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="780" fill="url(#bg)"/>
+
+  <rect x="40" y="26" width="1040" height="720" rx="12" fill="#161b22" stroke="#30363d"/>
+  <rect x="40" y="26" width="1040" height="44" rx="12" fill="#21262d"/>
+  <rect x="40" y="54" width="1040" height="16" fill="#21262d"/>
+  <circle cx="66" cy="48" r="7" fill="#f85149"/>
+  <circle cx="90" cy="48" r="7" fill="#d29922"/>
+  <circle cx="114" cy="48" r="7" fill="#3fb950"/>
+  <text x="560" y="54" text-anchor="middle" font-size="14" fill="#8b949e">cc-bridge · 请求转发日志（模型改写 · 多 KEY 容灾 · modelUsage 注入）</text>
+
+  <text x="60" y="100" font-size="13" fill="#3fb950">$ </text>
+  <text x="82" y="100" font-size="13" fill="#e6edf3">curl -sN -X POST http://127.0.0.1:8787/v1/messages \</text>
+  <text x="82" y="122" font-size="13" fill="#e6edf3">-H 'content-type: application/json' -H 'x-api-key: demo' \</text>
+  <text x="82" y="144" font-size="13" fill="#e6edf3">-d '{"model":"claude-opus-4-8","stream":true,"max_tokens":4096,</text>
+  <text x="82" y="166" font-size="13" fill="#e6edf3"> "output_config":{"effort":"xhigh"},"messages":[{"role":"user","content":"你好"}]}'</text>
+
+  <text x="60" y="204" font-size="12" fill="#8b949e"># ① model 改写：spoof claude-opus-4-8 → 真实 glm-5.2；思考等级由 MODEL_THINKING 决定（glm-5.2 → max），覆盖客户端 effort</text>
+  <text x="60" y="228" font-size="13" fill="#8b949e">[bridge 2026-08-06T18:07:12.482Z] <tspan fill="#e6edf3">POST /v1/messages  model=</tspan><tspan fill="#d29922">claude-opus-4-8 → glm-5.2</tspan><tspan fill="#e6edf3">  effort=</tspan><tspan fill="#d29922">xhigh</tspan><tspan fill="#e6edf3">  stream=true  key=#1/2</tspan></text>
+
+  <text x="60" y="260" font-size="12" fill="#8b949e"># ② KEY #1 失效 → 熔断 60s，立即切换 KEY #2</text>
+  <text x="60" y="284" font-size="13" fill="#8b949e">[bridge 2026-08-06T18:07:12.611Z] <tspan fill="#f85149">  ← 401  key=#1 认定失效 / 欠费，熔断 60s 并切换</tspan></text>
+
+  <text x="60" y="316" font-size="12" fill="#8b949e"># ③ KEY #2 成功，SSE 流式响应开始回传</text>
+  <text x="60" y="340" font-size="13" fill="#8b949e">[bridge 2026-08-06T18:07:12.789Z] <tspan fill="#3fb950">  ← 200  689ms  ct=text/event-stream  key=#2</tspan></text>
+
+  <text x="60" y="372" font-size="12" fill="#8b949e"># ④ 旁路观测上游 context caching 命中情况</text>
+  <text x="60" y="396" font-size="13" fill="#8b949e">[bridge 2026-08-06T18:07:12.812Z] <tspan fill="#58a6ff">  cache(anthropic): read=900 created=300 input=1200 out=42  →  命中 60%</tspan></text>
+
+  <text x="60" y="436" font-size="12" fill="#8b949e"># ⑤ 流式响应 —— message_delta 注入 modelUsage，让 CLI 显示真实上下文窗口</text>
+  <text x="60" y="462" font-size="13" fill="#39c5cf">event: </text>
+  <text x="114" y="462" font-size="13" fill="#e6edf3">message_start</text>
+
+  <text x="60" y="484" font-size="13" fill="#39c5cf">data: </text>
+  <text x="112" y="484" font-size="13" fill="#e6edf3">{"type":"message_start","message":{"id":"msg_mock_1",</text>
+  <text x="112" y="506" font-size="13" fill="#e6edf3">"model":"<tspan fill="#d29922">glm-5.2</tspan>","usage":{"input_tokens":1200,</text>
+  <text x="112" y="528" font-size="13" fill="#e6edf3">"cache_read_input_tokens":900,"cache_creation_input_tokens":300,"output_tokens":0}}}</text>
+
+  <text x="60" y="556" font-size="13" fill="#39c5cf">event: </text>
+  <text x="114" y="556" font-size="13" fill="#e6edf3">content_block_delta</text>
+
+  <text x="60" y="578" font-size="13" fill="#39c5cf">data: </text>
+  <text x="112" y="578" font-size="13" fill="#e6edf3">{"type":"content_block_delta","index":0,"delta":{"type":"text_delta",</text>
+  <text x="112" y="600" font-size="13" fill="#e6edf3">"text":"你好！我是通过 CC-BRIDGE 桥接的 GLM-5.2，思考等级按配置为 <tspan fill="#d29922">max</tspan> 并与多 KEY 容灾联动。"}}</text>
+
+  <text x="60" y="628" font-size="13" fill="#39c5cf">event: </text>
+  <text x="114" y="628" font-size="13" fill="#e6edf3">message_delta</text>
+
+  <text x="60" y="650" font-size="13" fill="#39c5cf">data: </text>
+  <text x="112" y="650" font-size="13" fill="#e6edf3">{"type":"message_delta","delta":{"stop_reason":"end_turn"},</text>
+  <text x="112" y="672" font-size="13" fill="#e6edf3">"usage":{"output_tokens":42},</text>
+  <text x="112" y="694" font-size="13" fill="#e6edf3">"<tspan fill="#bc8cff">modelUsage</tspan>":{"<tspan fill="#d29922">glm-5.2</tspan>":{"contextWindow":<tspan fill="#3fb950">200000</tspan>,"maxOutputTokens":<tspan fill="#3fb950">64000</tspan>}},</text>
+  <text x="112" y="716" font-size="13" fill="#e6edf3">"total_cost_usd":0}</text>
+
+  <text x="60" y="740" font-size="13" fill="#39c5cf">event: </text>
+  <text x="114" y="740" font-size="13" fill="#e6edf3">message_stop</text>
+
+  <text x="40" y="772" font-size="12" fill="#484f58">请求链路依据 CC-BRIDGE 真实运行行为 · v2.8.1 · 时间戳/用量为演示值</text>
+</svg>

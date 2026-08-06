@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 470" font-family="'SF Mono', Menlo, Monaco, 'PingFang SC', 'Microsoft YaHei', monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#0a0d12"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="470" fill="url(#bg)"/>
+
+  <rect x="40" y="26" width="1040" height="414" rx="12" fill="#161b22" stroke="#30363d"/>
+  <rect x="40" y="26" width="1040" height="44" rx="12" fill="#21262d"/>
+  <rect x="40" y="54" width="1040" height="16" fill="#21262d"/>
+  <circle cx="66" cy="48" r="7" fill="#f85149"/>
+  <circle cx="90" cy="48" r="7" fill="#d29922"/>
+  <circle cx="114" cy="48" r="7" fill="#3fb950"/>
+  <text x="560" y="54" text-anchor="middle" font-size="14" fill="#8b949e">cc-bridge · 按模型 token / 缓存命中统计</text>
+
+  <g font-size="13.5">
+    <text x="60" y="100" fill="#3fb950">$ </text>
+    <text x="82" y="100" fill="#e6edf3">cc-bridge glm stats</text>
+
+    <text x="60" y="134" fill="#58a6ff">[bridge] </text><text x="134" y="134" fill="#e6edf3">glm — per-model token stats</text>
+    <text x="60" y="160" fill="#58a6ff">[bridge] </text><text x="134" y="160" fill="#8b949e">window    : </text><text x="250" y="160" fill="#e6edf3">2026-08-06 17:12:00 → 2026-08-06 18:05:00</text>
+    <text x="60" y="186" fill="#58a6ff">[bridge] </text><text x="134" y="186" fill="#8b949e">file      : </text><text x="250" y="186" fill="#e6edf3">~/.cc-bridge/stats-glm.json</text>
+
+    <text x="70" y="224" fill="#8b949e">model       reqs         input     cache-hit     hit%        output</text>
+    <text x="70" y="250" fill="#e6edf3">glm-4.6       37       412,800       168,900    40.9%        12,990</text>
+    <text x="70" y="276" fill="#e6edf3">glm-4.7       63       865,400       420,700    48.6%        24,110</text>
+    <text x="70" y="302" fill="#d29922">glm-5.2      148     2,843,120     2,176,400    <tspan fill="#3fb950">76.5%</tspan>        51,248</text>
+    <text x="70" y="328" fill="#58a6ff">total        248     4,121,320     2,766,000    67.1%        88,348</text>
+
+    <text x="60" y="368" fill="#8b949e">[bridge] input = 输入 token 合计（已含缓存命中）；hit% = cache-hit / input；</text>
+    <text x="60" y="394" fill="#8b949e">[bridge] 命中率只计 server 侧能解析 usage 的请求（上游未返回 usage 的请求仅计入 reqs）。</text>
+
+    <text x="60" y="432" fill="#3fb950"># 同一上游按 target 模型分账 —— 请求数 / 输入 / 缓存命中 / 命中率 / 输出，可观察 context caching 是否生效</text>
+  </g>
+
+  <text x="40" y="462" font-size="12" fill="#484f58">取自真实运行输出 · CC-BRIDGE v2.8.1</text>
+</svg>

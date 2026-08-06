@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 540" font-family="'SF Mono', Menlo, Monaco, 'PingFang SC', 'Microsoft YaHei', monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#0a0d12"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="540" fill="url(#bg)"/>
+
+  <rect x="40" y="26" width="1040" height="478" rx="12" fill="#161b22" stroke="#30363d"/>
+  <rect x="40" y="26" width="1040" height="44" rx="12" fill="#21262d"/>
+  <rect x="40" y="54" width="1040" height="16" fill="#21262d"/>
+  <circle cx="66" cy="48" r="7" fill="#f85149"/>
+  <circle cx="90" cy="48" r="7" fill="#d29922"/>
+  <circle cx="114" cy="48" r="7" fill="#3fb950"/>
+  <text x="560" y="54" text-anchor="middle" font-size="14" fill="#8b949e">cc-bridge · 配置查看（多模型路由 · 按模型思考 · KEY 脱敏）</text>
+
+  <text x="60" y="104" font-size="13.5" fill="#3fb950">$ </text>
+  <text x="82" y="104" font-size="13.5" fill="#e6edf3">cc-bridge glm config show</text>
+
+  <text x="60" y="142" font-size="13.5" fill="#8b949e">upstream      : </text><text x="210" y="142" font-size="13.5" fill="#e6edf3">glm</text>
+  <text x="60" y="168" font-size="13.5" fill="#8b949e">config file   : </text><text x="210" y="168" font-size="13.5" fill="#e6edf3">~/.cc-bridge/glm.env</text>
+  <text x="60" y="194" font-size="13.5" fill="#8b949e">PROXY_PORT    : </text><text x="210" y="194" font-size="13.5" fill="#e6edf3">8788</text>
+  <text x="60" y="220" font-size="13.5" fill="#8b949e">PROXY_LOG     : </text><text x="210" y="220" font-size="13.5" fill="#e6edf3">1</text>
+  <text x="60" y="246" font-size="13.5" fill="#8b949e">api base      : </text><text x="210" y="246" font-size="13.5" fill="#58a6ff">https://api.z.ai/api/anthropic</text>
+
+  <text x="60" y="280" font-size="13.5" fill="#8b949e">model map     : </text><text x="210" y="280" font-size="13.5" fill="#e6edf3">3 pair(s)  <tspan fill="#484f58">(first pair = main model)</tspan></text>
+  <text x="60" y="304" font-size="13.5" fill="#8b949e">  main #1  </text><text x="160" y="304" font-size="13.5" fill="#d29922">claude-opus-4-8 → glm-5.2</text>
+  <text x="60" y="328" font-size="13.5" fill="#8b949e">       #2  </text><text x="160" y="328" font-size="13.5" fill="#d29922">claude-haiku-4-5 → glm-4.6</text>
+  <text x="60" y="352" font-size="13.5" fill="#8b949e">       #3  </text><text x="160" y="352" font-size="13.5" fill="#d29922">claude-sonnet-5 → glm-4.7</text>
+
+  <text x="60" y="384" font-size="13.5" fill="#8b949e">thinking      : </text><text x="210" y="384" font-size="13.5" fill="#e6edf3">per-model  <tspan fill="#484f58">(default=adapter max)</tspan></text>
+  <text x="210" y="408" font-size="13.5" fill="#d29922">glm-5.2 → max</text><text x="360" y="408" font-size="13.5" fill="#8b949e">glm-4.6 → none</text><text x="490" y="408" font-size="13.5" fill="#8b949e">glm-4.7 → none</text>
+
+  <text x="60" y="440" font-size="13.5" fill="#8b949e">API_KEYs      : </text><text x="210" y="440" font-size="13.5" fill="#3fb950">2</text>
+  <text x="60" y="464" font-size="13.5" fill="#8b949e">  #1       </text><text x="160" y="464" font-size="13.5" fill="#d29922">3527d5***</text>
+  <text x="60" y="488" font-size="13.5" fill="#8b949e">  #2       </text><text x="160" y="488" font-size="13.5" fill="#d29922">39cef2***</text>
+
+  <text x="40" y="528" font-size="12" fill="#484f58">真实输出 · API KEY 已脱敏（mask）· CC-BRIDGE v2.8.1</text>
+</svg>

@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" font-family="'SF Mono', Menlo, Monaco, 'PingFang SC', 'Microsoft YaHei', monospace">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff"/>
+    </marker>
+    <marker id="arrowUp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3fb950"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#0a0d12"/>
+    </linearGradient>
+    <linearGradient id="bridgeGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f2937"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="720" fill="url(#bg)"/>
+
+  <!-- Header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f0f6fc">CC-BRIDGE — Claude Code 上游桥接框架</text>
+  <text x="40" y="86" font-size="16" fill="#8b949e">本地透明桥 · 一个本地端点连接第三方模型上游 · <tspan fill="#d29922">思考等级可配置</tspan> · <tspan fill="#3fb950">多 KEY 容灾</tspan> · <tspan fill="#58a6ff">按模型统计</tspan></text>
+
+  <!-- Upstream badges -->
+  <g font-size="13">
+    <rect x="40" y="104" width="96" height="26" rx="13" fill="#0f2f1f" stroke="#238636"/>
+    <text x="88" y="121" text-anchor="middle" fill="#3fb950">glm ✅ 已实现</text>
+    <rect x="146" y="104" width="118" height="26" rx="13" fill="#10243a" stroke="#1f6feb"/>
+    <text x="205" y="121" text-anchor="middle" fill="#58a6ff">ds ✅ 已实现</text>
+    <rect x="274" y="104" width="140" height="26" rx="13" fill="#0d3035" stroke="#2a9aa8"/>
+    <text x="344" y="121" text-anchor="middle" fill="#39c5cf">mimo ✅ 已实现</text>
+    <rect x="424" y="104" width="120" height="26" rx="13" fill="#2d1a3a" stroke="#8957e5"/>
+    <text x="484" y="121" text-anchor="middle" fill="#bc8cff">kimi 🚧 预留</text>
+    <rect x="554" y="104" width="122" height="26" rx="13" fill="#2d1a3a" stroke="#8957e5"/>
+    <text x="615" y="121" text-anchor="middle" fill="#bc8cff">qwen 🚧 预留</text>
+  </g>
+
+  <!-- ============ Claude Code (left) ============ -->
+  <g>
+    <rect x="40" y="180" width="250" height="330" rx="12" fill="#161b22" stroke="#30363d"/>
+    <rect x="40" y="180" width="250" height="42" rx="12" fill="#21262d"/>
+    <rect x="40" y="206" width="250" height="16" fill="#21262d"/>
+    <circle cx="62" cy="201" r="6" fill="#f85149"/>
+    <circle cx="82" cy="201" r="6" fill="#d29922"/>
+    <circle cx="102" cy="201" r="6" fill="#3fb950"/>
+    <text x="188" y="206" text-anchor="middle" font-size="14" fill="#8b949e">Claude Code</text>
+
+    <text x="60" y="258" font-size="15" fill="#e6edf3">model（spoof）</text>
+    <rect x="60" y="270" width="210" height="28" rx="6" fill="#0d1117" stroke="#30363d"/>
+    <text x="70" y="289" font-size="14" fill="#d29922">claude-opus-4-8</text>
+    <text x="60" y="330" font-size="15" fill="#e6edf3">思考等级</text>
+    <rect x="60" y="342" width="210" height="28" rx="6" fill="#0d1117" stroke="#30363d"/>
+    <text x="70" y="361" font-size="13" fill="#8b949e">MODEL_THINKING 配置</text>
+    <text x="60" y="412" font-size="15" fill="#e6edf3">请求</text>
+    <rect x="60" y="424" width="210" height="34" rx="6" fill="#0d1117" stroke="#30363d"/>
+    <text x="70" y="445" font-size="13" fill="#8b949e">POST /v1/messages</text>
+    <text x="70" y="462" font-size="13" fill="#8b949e">stream = true</text>
+  </g>
+
+  <!-- Arrow: Claude Code -> bridge -->
+  <line x1="290" y1="345" x2="440" y2="345" stroke="#58a6ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="365" y="330" text-anchor="middle" font-size="13" fill="#8b949e">POST /v1/messages</text>
+
+  <!-- ============ cc-bridge (center) ============ -->
+  <g>
+    <rect x="445" y="170" width="360" height="360" rx="14" fill="url(#bridgeGrad)" stroke="#58a6ff" stroke-width="2"/>
+    <text x="625" y="212" text-anchor="middle" font-size="20" font-weight="700" fill="#f0f6fc">cc-bridge</text>
+    <text x="625" y="234" text-anchor="middle" font-size="13" fill="#8b949e">127.0.0.1:8787 · Node ≥ 14 零依赖</text>
+
+    <!-- steps -->
+    <g font-size="14">
+      <circle cx="475" cy="272" r="11" fill="#1f6feb"/>
+      <text x="475" y="277" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">1</text>
+      <text x="497" y="277" fill="#e6edf3">改写 <tspan fill="#d29922">body.model</tspan> → 真实模型（按 MODEL_MAP）</text>
+
+      <circle cx="475" cy="318" r="11" fill="#1f6feb"/>
+      <text x="475" y="323" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">2</text>
+      <text x="497" y="323" fill="#e6edf3"><tspan fill="#d29922">adapter.adaptRequestBody</tspan> 上游专属适配</text>
+
+      <circle cx="475" cy="364" r="11" fill="#3fb950"/>
+      <text x="475" y="369" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">3</text>
+      <text x="497" y="369" fill="#e6edf3"><tspan fill="#3fb950">多 KEY 容灾</tspan>：401/403 熔断 60s 并切换</text>
+
+      <circle cx="475" cy="410" r="11" fill="#bc8cff"/>
+      <text x="475" y="415" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">4</text>
+      <text x="497" y="415" fill="#e6edf3">注入 <tspan fill="#bc8cff">modelUsage</tspan> + 按模型 token/缓存统计</text>
+
+      <circle cx="475" cy="456" r="11" fill="#d29922"/>
+      <text x="475" y="461" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">5</text>
+      <text x="497" y="461" fill="#e6edf3">按 <tspan fill="#d29922">MODEL_THINKING</tspan> 配置思考等级</text>
+    </g>
+
+    <text x="475" y="505" font-size="13" fill="#8b949e">未知 model → HTTP 400 拒绝，绝不静默改写</text>
+  </g>
+
+  <!-- Arrow: bridge -> upstream -->
+  <line x1="805" y1="345" x2="910" y2="345" stroke="#3fb950" stroke-width="2.5" marker-end="url(#arrowUp)"/>
+  <text x="858" y="330" text-anchor="middle" font-size="13" fill="#8b949e">改写后转发</text>
+
+  <!-- ============ Upstreams (right) ============ -->
+  <g>
+    <rect x="915" y="170" width="245" height="360" rx="14" fill="#161b22" stroke="#30363d"/>
+    <text x="1037" y="208" text-anchor="middle" font-size="16" font-weight="700" fill="#f0f6fc">第三方上游</text>
+
+    <rect x="935" y="230" width="205" height="44" rx="8" fill="#0f2f1f" stroke="#238636"/>
+    <text x="952" y="252" font-size="14" fill="#3fb950">GLM-5.2</text>
+    <text x="952" y="266" font-size="11" fill="#8b949e">z.ai · api.z.ai/api/anthropic</text>
+
+    <rect x="935" y="288" width="205" height="44" rx="8" fill="#10243a" stroke="#1f6feb"/>
+    <text x="952" y="310" font-size="14" fill="#58a6ff">DeepSeek-V4</text>
+    <text x="952" y="324" font-size="11" fill="#8b949e">pro / flash</text>
+
+    <rect x="935" y="346" width="205" height="44" rx="8" fill="#0d3035" stroke="#2a9aa8"/>
+    <text x="952" y="368" font-size="14" fill="#39c5cf">MiMo-V2.5-Pro</text>
+    <text x="952" y="382" font-size="11" fill="#8b949e">小米</text>
+
+    <rect x="935" y="404" width="205" height="44" rx="8" fill="#2d1a3a" stroke="#8957e5"/>
+    <text x="952" y="426" font-size="14" fill="#bc8cff">Kimi / Qwen</text>
+    <text x="952" y="440" font-size="11" fill="#8b949e">预留 · 新增只需一个 adapter 文件</text>
+
+    <text x="1037" y="494" text-anchor="middle" font-size="12" fill="#8b949e">每个上游独立配置 / pid / 日志</text>
+  </g>
+
+  <!-- ============ Bottom: failover flow ============ -->
+  <rect x="40" y="552" width="1120" height="140" rx="12" fill="#161b22" stroke="#30363d"/>
+  <text x="60" y="584" font-size="16" font-weight="700" fill="#f0f6fc">多 KEY 容灾（URL 不变，只轮换 KEY）</text>
+
+  <g font-size="13">
+    <rect x="60" y="604" width="150" height="52" rx="8" fill="#0d1117" stroke="#f85149"/>
+    <text x="135" y="626" text-anchor="middle" fill="#f85149">KEY #1</text>
+    <text x="135" y="644" text-anchor="middle" fill="#8b949e">sk-dead-…</text>
+
+    <line x1="210" y1="630" x2="268" y2="630" stroke="#f85149" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="239" y="622" text-anchor="middle" fill="#f85149">401</text>
+
+    <rect x="272" y="604" width="180" height="52" rx="8" fill="#2d1418" stroke="#f85149"/>
+    <text x="362" y="626" text-anchor="middle" fill="#f0f6fc">熔断 60 秒</text>
+    <text x="362" y="644" text-anchor="middle" fill="#8b949e">立即切换下一 KEY</text>
+
+    <line x1="452" y1="630" x2="510" y2="630" stroke="#3fb950" stroke-width="2" marker-end="url(#arrowUp)"/>
+    <text x="481" y="622" text-anchor="middle" fill="#3fb950">切换</text>
+
+    <rect x="514" y="604" width="150" height="52" rx="8" fill="#0f2f1f" stroke="#3fb950"/>
+    <text x="589" y="626" text-anchor="middle" fill="#3fb950">KEY #2</text>
+    <text x="589" y="644" text-anchor="middle" fill="#8b949e">sk-good-…</text>
+
+    <line x1="664" y1="630" x2="722" y2="630" stroke="#3fb950" stroke-width="2" marker-end="url(#arrowUp)"/>
+    <text x="693" y="622" text-anchor="middle" fill="#3fb950">200</text>
+
+    <rect x="726" y="604" width="200" height="52" rx="8" fill="#0d1117" stroke="#3fb950"/>
+    <text x="826" y="626" text-anchor="middle" fill="#f0f6fc">请求成功 ✅</text>
+    <text x="826" y="644" text-anchor="middle" fill="#8b949e">429/5xx → 同 KEY 重试后再换</text>
+  </g>
+
+  <text x="40" y="712" font-size="12" fill="#484f58">v2.8.1 · CC-BRIDGE · https://github.com/xhqing/CC-BRIDGE</text>
+</svg>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 560" font-family="'SF Mono', Menlo, Monaco, 'PingFang SC', 'Microsoft YaHei', monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#0a0d12"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="560" fill="url(#bg)"/>
+
+  <!-- window -->
+  <rect x="40" y="30" width="1040" height="500" rx="12" fill="#161b22" stroke="#30363d"/>
+  <rect x="40" y="30" width="1040" height="44" rx="12" fill="#21262d"/>
+  <rect x="40" y="58" width="1040" height="16" fill="#21262d"/>
+  <circle cx="66" cy="52" r="7" fill="#f85149"/>
+  <circle cx="90" cy="52" r="7" fill="#d29922"/>
+  <circle cx="114" cy="52" r="7" fill="#3fb950"/>
+  <text x="560" y="58" text-anchor="middle" font-size="14" fill="#8b949e">cc-bridge · 启动横幅 + /health 探活</text>
+
+  <!-- content -->
+  <g font-size="13.5">
+    <text x="60" y="108" fill="#3fb950">$ </text>
+    <text x="82" y="108" fill="#e6edf3">cc-bridge glm _serve    <tspan fill="#8b949e"># 前台启动桥接服务（演示配置）</tspan></text>
+
+    <text x="60" y="138" fill="#58a6ff">[bridge] </text>
+    <text x="128" y="138" fill="#e6edf3">listening on <tspan fill="#3fb950">http://127.0.0.1:8787</tspan></text>
+    <text x="60" y="162" fill="#58a6ff">[bridge] </text>
+    <text x="128" y="162" fill="#e6edf3">upstream     : <tspan fill="#d29922">GLM-5.2 (z.ai)</tspan></text>
+    <text x="60" y="186" fill="#58a6ff">[bridge] </text>
+    <text x="128" y="186" fill="#e6edf3">api base     : <tspan fill="#58a6ff">http://127.0.0.1:8899/api/anthropic</tspan></text>
+    <text x="60" y="210" fill="#58a6ff">[bridge] </text>
+    <text x="128" y="210" fill="#e6edf3">spoof → target : <tspan fill="#d29922">claude-opus-4-8 → glm-5.2</tspan>   |   <tspan fill="#d29922">claude-haiku-4-5 → glm-5.2</tspan></text>
+    <text x="60" y="234" fill="#58a6ff">[bridge] </text>
+    <text x="128" y="234" fill="#e6edf3">API keys     : <tspan fill="#3fb950">2</tspan>   <tspan fill="#8b949e">(API_KEY_1 + API_KEY_2 容灾)</tspan></text>
+    <text x="60" y="258" fill="#58a6ff">[bridge] </text>
+    <text x="128" y="258" fill="#e6edf3">thinking     : default=<tspan fill="#d29922">max</tspan>  per-model: <tspan fill="#d29922">glm-5.2=max</tspan></text>
+    <text x="60" y="282" fill="#58a6ff">[bridge] </text>
+    <text x="128" y="282" fill="#e6edf3">logging      : on</text>
+
+    <text x="60" y="320" fill="#3fb950">$ </text>
+    <text x="82" y="320" fill="#e6edf3">curl -s http://127.0.0.1:8787/health</text>
+
+    <text x="60" y="354" fill="#8b949e"># 本地探活端点 —— 不触达上游，返回桥接状态</text>
+    <text x="60" y="380" fill="#e6edf3">{"status":"<tspan fill="#3fb950">ok</tspan>","upstream":"glm","display":"GLM-5.2 (z.ai)",</text>
+    <text x="60" y="404" fill="#e6edf3"> "api_base":"http://127.0.0.1:8899/api/anthropic",</text>
+    <text x="60" y="428" fill="#e6edf3"> "spoof":"claude-opus-4-8","target":"glm-5.2",</text>
+    <text x="60" y="452" fill="#e6edf3"> "modelMap":[{"spoof":"claude-opus-4-8","target":"glm-5.2"},</text>
+    <text x="60" y="476" fill="#e6edf3">             {"spoof":"claude-haiku-4-5","target":"glm-5.2"}],</text>
+    <text x="60" y="500" fill="#e6edf3"> "keys":<tspan fill="#3fb950">2</tspan>}</text>
+  </g>
+
+  <text x="40" y="552" font-size="12" fill="#484f58">取自真实运行输出 · CC-BRIDGE v2.8.1</text>
+</svg>

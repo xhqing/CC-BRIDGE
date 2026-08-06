@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 640" font-family="'SF Mono', Menlo, Monaco, 'PingFang SC', 'Microsoft YaHei', monospace">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b949e"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#0a0d12"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="640" fill="url(#bg)"/>
+
+  <text x="40" y="50" font-size="26" font-weight="700" fill="#f0f6fc">思考等级按配置管理（MODEL_THINKING）</text>
+  <text x="40" y="78" font-size="14" fill="#8b949e">每个 target 模型一个等级（<tspan fill="#d29922">max</tspan> / <tspan fill="#d29922">high</tspan> / <tspan fill="#d29922">none</tspan>），由配置文件决定、非代码写死 —— 客户端 /effort 档位被覆盖。</text>
+
+  <!-- LEFT: config file -->
+  <rect x="40" y="110" width="500" height="240" rx="14" fill="#161b22" stroke="#30363d"/>
+  <rect x="40" y="110" width="500" height="44" rx="14" fill="#21262d"/>
+  <rect x="40" y="138" width="500" height="16" fill="#21262d"/>
+  <text x="290" y="138" text-anchor="middle" font-size="15" font-weight="700" fill="#f0f6fc">~/.cc-bridge/glm.env（配置文件）</text>
+
+  <g font-size="13">
+    <text x="60" y="178" fill="#8b949e"># 模型路由（spoof → target 多对）</text>
+    <text x="60" y="202"><tspan fill="#d29922">MODEL_MAP</tspan><tspan fill="#8b949e">=</tspan><tspan fill="#e6edf3">claude-opus-4-8-&gt;</tspan><tspan fill="#3fb950">glm-5.2</tspan><tspan fill="#e6edf3">,claude-haiku-4-5-&gt;</tspan><tspan fill="#e6edf3">glm-4.6</tspan></text>
+
+    <text x="60" y="232" fill="#8b949e"># 按模型思考等级（可配 max / high / none）</text>
+    <text x="60" y="256"><tspan fill="#d29922">MODEL_THINKING</tspan><tspan fill="#8b949e">=</tspan><tspan fill="#e6edf3">glm-5.2-&gt;</tspan><tspan fill="#3fb950">max</tspan><tspan fill="#e6edf3">,glm-4.6-&gt;</tspan><tspan fill="#484f58">none</tspan></text>
+
+    <text x="60" y="286" fill="#8b949e"># 未列出模型的兜底等级</text>
+    <text x="60" y="310"><tspan fill="#d29922">MODEL_THINKING_DEFAULT</tspan><tspan fill="#8b949e">=</tspan><tspan fill="#3fb950">max</tspan><tspan fill="#484f58">   # 默认 max（可改 high/none）</tspan></text>
+  </g>
+
+  <!-- arrow -->
+  <line x1="540" y1="230" x2="596" y2="230" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="568" y="220" text-anchor="middle" font-size="12" fill="#8b949e">解析注入</text>
+
+  <!-- RIGHT: adapter -->
+  <rect x="600" y="110" width="480" height="240" rx="14" fill="#161b22" stroke="#30363d"/>
+  <rect x="600" y="110" width="480" height="44" rx="14" fill="#21262d"/>
+  <rect x="600" y="138" width="480" height="16" fill="#21262d"/>
+  <text x="840" y="138" text-anchor="middle" font-size="15" font-weight="700" fill="#f0f6fc">adapter.adaptRequestBody（按 target 应用）</text>
+
+  <g font-size="13">
+    <text x="620" y="180" fill="#e6edf3">按 <tspan fill="#d29922">ctx.target</tspan> 查 MODEL_THINKING 表，得到等级</text>
+    <text x="620" y="206" fill="#e6edf3">把等级对称写入三个字段</text>
+    <text x="620" y="232" fill="#8b949e">· thinking.type = enabled / disabled</text>
+    <text x="620" y="256" fill="#8b949e">· reasoning_effort = max / high / none</text>
+    <text x="620" y="280" fill="#8b949e">· output_config.effort = max / high / none</text>
+    <text x="620" y="312" fill="#d29922">客户端 /effort 档位被忽略 / 覆盖</text>
+    <text x="620" y="336" fill="#484f58">（GLM / DeepSeek 用 max/high/none；MiMo 为 enabled/disabled）</text>
+  </g>
+
+  <!-- arrow down -->
+  <line x1="560" y1="400" x2="560" y2="436" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="560" y="424" text-anchor="middle" font-size="12" fill="#8b949e">按模型生效</text>
+
+  <!-- bottom: per-model outcomes -->
+  <g>
+    <rect x="40" y="440" width="330" height="150" rx="12" fill="#0f2f1f" stroke="#3fb950"/>
+    <text x="60" y="472" font-size="14" fill="#3fb950">glm-5.2 → <tspan fill="#d29922">max</tspan></text>
+    <text x="60" y="502" font-size="12.5" fill="#8b949e">thinking.type     = enabled</text>
+    <text x="60" y="526" font-size="12.5" fill="#8b949e">reasoning_effort  = max</text>
+    <text x="60" y="550" font-size="12.5" fill="#8b949e">output_config.effort = max</text>
+    <text x="60" y="578" font-size="12" fill="#484f58">主力模型全量思考</text>
+
+    <rect x="395" y="440" width="330" height="150" rx="12" fill="#2d1418" stroke="#f85149"/>
+    <text x="415" y="472" font-size="14" fill="#f85149">glm-4.6 → <tspan fill="#d29922">none</tspan></text>
+    <text x="415" y="502" font-size="12.5" fill="#8b949e">thinking.type     = disabled</text>
+    <text x="415" y="526" font-size="12.5" fill="#8b949e">reasoning_effort  = none</text>
+    <text x="415" y="550" font-size="12.5" fill="#8b949e">output_config.effort = none</text>
+    <text x="415" y="578" font-size="12" fill="#484f58">不思考（轻量任务省时省钱）</text>
+
+    <rect x="750" y="440" width="330" height="150" rx="12" fill="#10243a" stroke="#1f6feb"/>
+    <text x="770" y="472" font-size="14" fill="#58a6ff">其它模型 → MODEL_THINKING_DEFAULT</text>
+    <text x="770" y="502" font-size="12.5" fill="#8b949e">默认 <tspan fill="#3fb950">max</tspan>（可配 high / none）</text>
+    <text x="770" y="526" font-size="12.5" fill="#8b949e">未列出的模型走兜底等级</text>
+    <text x="770" y="550" font-size="12.5" fill="#8b949e">三字段同样对称写入</text>
+  </g>
+
+  <text x="40" y="626" font-size="12" fill="#484f58">思考等级由配置决定，无需客户端 /effort · CC-BRIDGE v2.8.1</text>
+</svg>
